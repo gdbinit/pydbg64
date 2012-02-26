@@ -22,6 +22,8 @@
 #include <mach/mach.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
 
 // All prototypes compliments of MSDN
 
@@ -32,6 +34,7 @@ BOOL DebugActiveProcess(DWORD dwProcessId);
 BOOL WaitForDebugEvent(LPDEBUG_EVENT lpDebugEvent, DWORD dwMilliseconds);
 BOOL ContinueDebugEvent(DWORD dwProcessId, DWORD dwThreadId, DWORD dwContinueStatus);
 BOOL DebugSetProcessKillOnExit(BOOL KillOnExit);
+BOOL StartProcess(DWORD dwProcessId);
 BOOL DebugActiveProcessStop(DWORD dwProcessId);
 BOOL TerminateProcess(HANDLE hProcess, UINT uExitCode);
 HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID);
@@ -52,15 +55,17 @@ BOOL VirtualFreeEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFre
 SIZE_T VirtualQueryEx(HANDLE hProcess, LPCVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength);
 BOOL WriteProcessMemory(HANDLE hProcess, LPVOID lpBaseAddress, LPCVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten);
 DWORD GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);
-BOOL VirtualProtectEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
+//BOOL VirtualProtectEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
+BOOL VirtualProtectEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect);
 BOOL GetThreadSelectorEntry(HANDLE hThread, DWORD dwSelector, LPLDT_ENTRY lpSelectorEntry);
-
+BOOL NtSystemDebugControl();
 
 
 // TODO
 HMODULE LoadLibraryA(LPCTSTR lpFileName);
 BOOL FreeLibrary(HMODULE hModule);
 FARPROC GetProcAddress(HMODULE hModule, LPCSTR lpProcName);
+DWORD GetImageCount(void);
 BOOL FlushInstructionCache(HANDLE hProcess, LPCVOID lpBaseAddress, SIZE_T dwSize);
 BOOL Module32First(HANDLE hSnapshot, LPMODULEENTRY32 lpme);
 BOOL Module32Next(HANDLE hSnapshot, LPMODULEENTRY32 lpme);

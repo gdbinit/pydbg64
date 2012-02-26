@@ -27,15 +27,25 @@
 int attach(int pid, mach_port_t *ep);
 int detach(int pid, mach_port_t *ep);
 void get_task_threads(int pid, thread_act_port_array_t *thread_list, mach_msg_type_number_t *thread_count);
-int virtual_free(int pid, int address, int size);
-int virtual_protect(int pid, int address, int size, int type);
-char *allocate(int pid, int address, int size);
-int read_memory(int pid, unsigned int addr, int len, char *data);
-int write_memory(int pid, unsigned int addr, int len, char *data);
+
+
+int virtual_query(int pid, mach_vm_address_t *baseaddr, unsigned int *prot, mach_vm_size_t *size);
+int virtual_protect(int pid, mach_vm_address_t address, mach_vm_size_t size, vm_prot_t type);
+int write_memory(int pid, mach_vm_address_t addr, mach_msg_type_number_t len, char *data);
+int read_memory(int pid, mach_vm_address_t addr, mach_vm_size_t len, char *data);
+char *allocate(int pid, mach_vm_address_t address,  mach_vm_size_t size);
+int virtual_free(int pid, mach_vm_address_t address, mach_vm_size_t size);
+
+#if __LP64__
+int get_context(thread_act_t thread, x86_thread_state64_t *state);
+#else
 int get_context(thread_act_t thread, i386_thread_state_t *state);
+#endif
+
+
 int suspend_thread(unsigned int thread);
 int resume_thread(unsigned int thread);
 int set_context(thread_act_t thread, i386_thread_state_t *state);
-int virtual_query(int pid, unsigned int *baseaddr, unsigned int *prot, unsigned int *size);
+
 int allocate_in_thread(int threadId, int size);
 task_t getport(int pid);

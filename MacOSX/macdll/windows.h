@@ -11,7 +11,11 @@
 #define LPCTSTR char *
 #define HANDLE int
 #define FARPROC int
+#if __LP64__
+#define PVOID unsigned long
+#else
 #define PVOID unsigned int
+#endif
 #define ULONG_PTR unsigned long *
 #define LPCVOID void *
 #define SIZE_T size_t
@@ -59,6 +63,7 @@ typedef struct _EXCEPTION_RECORD {
   DWORD ExceptionCode;
   DWORD ExceptionFlags;
   struct _EXCEPTION_RECORD* ExceptionRecord;
+  // fixme : pvoid is unsigned int
   PVOID ExceptionAddress;
   DWORD NumberParameters;
   ULONG_PTR ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
@@ -136,6 +141,7 @@ typedef struct _FLOATING_SAVE_AREA {
     DWORD   Cr0NpxState;
 } FLOATING_SAVE_AREA;
 
+// FIXME - split into two structures to save space? or who cares, ram is cheap!
 typedef struct _CONTEXT {
     DWORD ContextFlags;
     DWORD   Dr0;
@@ -161,9 +167,26 @@ typedef struct _CONTEXT {
 	DWORD   EFlags;            
     DWORD   Esp;
     DWORD   SegSs;
+    DWORD   Rip;
+    DWORD   Rax;
+    DWORD   Rbx;
+    DWORD   Rcx;
+    DWORD   Rdx;
+	DWORD   Rdi;
+    DWORD   Rsi;
+    DWORD   Rbp;
+    DWORD   Rsp;
+	DWORD   RFlags;            	
+	DWORD	R8;
+	DWORD	R9;
+	DWORD	R10;
+	DWORD	R11;
+	DWORD	R12;
+	DWORD	R13;
+	DWORD	R14;
+	DWORD	R15;
     BYTE    ExtendedRegisters[MAXIMUM_SUPPORTED_EXTENSION];
 } CONTEXT;
-
 
 typedef struct _STARTUPINFO {
   DWORD cb;

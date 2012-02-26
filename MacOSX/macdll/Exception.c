@@ -86,22 +86,24 @@ Initial
     // When we MIG our own exception server, it creates a handydandy header that we 
     // can just include.
 
-#include "MachExceptionsServer.h"
+//#include "MachExceptionsServer.h"
 
 #include "Exception.h"
 #include "implementation.h"
 
 static int thread_id;
 static int exception_code;
-static  int exception_at;
-static int exception_ref;
+static long exception_at;
+static long exception_ref;
 
 // Windows exception codes
 #define EXCEPTION_ACCESS_VIOLATION	0xC0000005
 #define EXCEPTION_BREAKPOINT		0x80000003
 #define EXCEPTION_GUARD_PAGE		0x80000001
 #define EXCEPTION_SINGLE_STEP		0x80000004
-#define EFLAGS_TRAP			0x00000100
+#define EFLAGS_TRAP					0x00000100
+
+extern boolean_t mach_exc_server(mach_msg_header_t *request,mach_msg_header_t *reply);
 
 int XToWinException(int ec){
 	int ret;
@@ -126,7 +128,7 @@ int XToWinException(int ec){
 // routine.  catch_exception_raise and catch_exception_raise_state are present 
 // purely for demostration purposes.
 
-extern kern_return_t catch_exception_raise(
+extern kern_return_t catch_mach_exception_raise(
 	mach_port_t             exception_port,
 	mach_port_t             thread,
 	mach_port_t             task,
@@ -135,8 +137,114 @@ extern kern_return_t catch_exception_raise(
 	mach_msg_type_number_t  codeCnt
 )
 {
-    assert(false);
-    return KERN_FAILURE;
+	kern_return_t      kr, result;
+	mach_msg_type_number_t	count;
+
+    // Decide whether to handle it or not.
+#if __LP64__
+	x86_thread_state64_t state;
+	count = x86_THREAD_STATE64_COUNT;
+#else
+	i386_thread_state_t state;	  
+	count = i386_THREAD_STATE_COUNT;
+#endif
+    if (exception == EXC_BREAKPOINT) 
+	{
+		// For breakpoint exceptions, we just continue execution past the breakpoint.
+		// fG - retrieve thread state information since we just have the thread identity
+#if __LP64__
+		kr = thread_get_state(thread,                 // target thread
+							  x86_THREAD_STATE64,   // flavor of state to get
+							  (thread_state_t)&state, // state information
+							  &count);                // in/out size
+		
+#else
+		kr = thread_get_state(thread,                 // target thread
+							  i386_THREAD_STATE,   // flavor of state to get
+							  (thread_state_t)&state, // state information
+							  &count);                // in/out size
+#endif
+		
+		suspend_thread(thread);
+		
+		// set globals
+		thread_id = thread;
+		exception_code = exception;
+#if __LP64__
+		// determine if single step
+//		printf("RFLAGS: %lx %x\n", state.__rflags, code[0]);
+		if(state.__rflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
+		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
+			exception_code = EXCEPTION_SINGLE_STEP;
+		}
+		
+		exception_at = state.__rip - 1;   // Cause of the cc
+        thread_state_flavor_t flavor = x86_EXCEPTION_STATE64;
+        mach_msg_type_number_t exc_state_count = x86_THREAD_STATE64_COUNT;
+        x86_exception_state64_t exc_state;
+
+        thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);	
+		exception_ref = exc_state.__faultvaddr;
+
+#else
+		// determine if single step
+//		printf("EFLAGS: %x %x\n", state.eflags, code[0]);
+		if(state.eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
+		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
+			exception_code = EXCEPTION_SINGLE_STEP;
+		}
+		
+		exception_at = state.eip - 1;   // Cause of the cc
+        thread_state_flavor_t flavor = i386_EXCEPTION_STATE;
+        mach_msg_type_number_t exc_state_count = i386_EXCEPTION_STATE_COUNT;
+        i386_exception_state_t exc_state;
+        thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);
+		exception_ref = exc_state.faultvaddr;
+#endif
+        
+		//fprintf(stderr, "Hit breakpoint at %x\n", exception_at);
+        result = KERN_SUCCESS;
+		
+        //fprintf(stderr, "  continuing from catch_exception_raise\n");
+    }
+	else if (exception == EXC_BAD_ACCESS)
+	{
+		// This is bad - or good :) //
+		// set globals
+		thread_id = thread;
+		exception_code = exception;
+#if __LP64__
+		exception_at = state.__rip;   
+        thread_state_flavor_t flavor = x86_EXCEPTION_STATE64;
+        mach_msg_type_number_t exc_state_count = x86_THREAD_STATE64_COUNT;
+        x86_exception_state64_t exc_state;
+        thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);		
+		exception_ref = exc_state.__faultvaddr;
+#else
+		exception_at = state.eip;   
+        thread_state_flavor_t flavor = i386_EXCEPTION_STATE;
+        mach_msg_type_number_t exc_state_count = i386_EXCEPTION_STATE_COUNT;
+        i386_exception_state_t exc_state;
+        thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);
+		exception_ref = exc_state.faultvaddr;
+#endif
+        
+		result = KERN_SUCCESS;
+	} 
+	else
+	{
+		
+        // Other exceptions are SEP (somebody else's problem).
+		
+        result = KERN_FAILURE;
+		
+        //fprintf(stderr, "  passing the buck\n");
+    }
+
+    return result;
+	
+//    assert(false);
+//    return KERN_FAILURE;
 /*
     if (exception != EXC_BREAKPOINT) {
 		assert(false);
@@ -164,7 +272,7 @@ extern kern_return_t catch_exception_raise(
 */
 }
 
-extern kern_return_t catch_exception_raise_state(
+extern kern_return_t catch_mach_exception_raise_state(
 	mach_port_t             exception_port,
 	exception_type_t        exception,
 	const exception_data_t  code,
@@ -176,11 +284,11 @@ extern kern_return_t catch_exception_raise_state(
 	mach_msg_type_number_t *new_stateCnt
 )
 {
-    assert(false);
+//    assert(false);
     return KERN_FAILURE;
 }
 
-extern kern_return_t catch_exception_raise_state_identity(
+extern kern_return_t catch_mach_exception_raise_state_identity(
 	mach_port_t             exception_port,
 	mach_port_t             thread,
 	mach_port_t             task,
@@ -261,8 +369,8 @@ extern kern_return_t catch_exception_raise_state_identity(
     //
   { 
     kern_return_t           result;
-    int                     i;
-    i386_thread_state_t *  state;
+//    int                     i;
+//    i386_thread_state_t *  state;
     
     // Print out some information about the exception.
     
@@ -270,68 +378,111 @@ extern kern_return_t catch_exception_raise_state_identity(
     //fprintf(stderr, "  exception_port = %#x\n", exception_port);
     //fprintf(stderr, "  exception      = %d\n", exception);
     //fprintf(stderr, "  thread         = 0x%x\n", thread);
-    for (i = 0; i < codeCnt; i++) {
+//    for (i = 0; i < codeCnt; i++) {
         //fprintf(stderr, "  code[%d]        = %#x\n", i, code[i]);
-    }
+//    }
     //fprintf(stderr, "  *flavor        = %d\n", *flavor);
     //fprintf(stderr, "  old_stateCnt   = %d\n", old_stateCnt);
     //fprintf(stderr, "  *new_stateCnt  = %d\n", *new_stateCnt);
     //fprintf(stderr, "  i386_THREAD_STATE_COUNT = %d\n", i386_THREAD_STATE_COUNT);
 	//fprintf(stderr, "  x86_THREAD_STATE32_COUNT= %d\n", x86_THREAD_STATE32_COUNT);
 	//fprintf(stderr, "  x86_THREAD_STATE_COUNT  = %d\n", x86_THREAD_STATE_COUNT);
-	
-    assert( old_stateCnt == i386_THREAD_STATE_COUNT );
-    state = (i386_thread_state_t *) old_state;
+//    assert( old_stateCnt == i386_THREAD_STATE_COUNT );
+//    state = (i386_thread_state_t *) old_state;
 
     //fprintf(stderr, "  state->eip     = %#x\n", state->eip);
-    
+	  printf("[DEBUG!] TRYING TO FIND THE EXCEPTION!\n");
     // Decide whether to handle it or not.
-    
-    if (exception == EXC_BREAKPOINT) {
-        i386_thread_state_t *  newState;
+/*
+#if __LP64__
+	  x86_thread_state64_t state;
+	  state = (x86_thread_state64_t *) old_state;
+#else
+	  i386_thread_state_t *  state;	  
+	  state = (i386_thread_state_t *) old_state;
+#endif
+    if (exception == EXC_BREAKPOINT) 
+	{
 
+#if __LP64__
+		x86_thread_state64_t *newState;
+#else
+        i386_thread_state_t *  newState;
+#endif
         // For breakpoint exceptions, we just continue execution past the breakpoint.
     
         // Copy the old state to the new state.
         
-        assert( old_stateCnt <= *new_stateCnt );
+//        assert( old_stateCnt <= *new_stateCnt );
         *new_stateCnt = old_stateCnt;
         // no need to modify *flavor
+#if __LP64__
+		newState = (x86_thread_state64_t *) new_state;
+#else
         newState = (i386_thread_state_t *) new_state;
+#endif
         *newState     = *state;
 
-	suspend_thread(thread);
+		suspend_thread(thread);
 
-	// set globals
-	thread_id = thread;
-	exception_code = exception;
-	// determine if single step 
-	if(state->eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL){   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
-		exception_code = EXCEPTION_SINGLE_STEP;
-	} 
-	exception_at = state->eip - 1;   // Cause of the cc
+		// set globals
+		thread_id = thread;
+		exception_code = exception;
+#if __LP64__
+		// determine if single step 
+		if(state->rflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
+		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
+			exception_code = EXCEPTION_SINGLE_STEP;
+		}
+
+		exception_at = state->rip - 1;   // Cause of the cc
+        thread_state_flavor_t flavor = x86_EXCEPTION_STATE64;
+        mach_msg_type_number_t exc_state_count = x86_THREAD_STATE64_COUNT;
+        x86_thread_state64_t exc_state;
+        thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);		
+#else
+		// determine if single step 
+		if(state->eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
+		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
+			exception_code = EXCEPTION_SINGLE_STEP;
+		}
+		
+		exception_at = state->eip - 1;   // Cause of the cc
         thread_state_flavor_t flavor = i386_EXCEPTION_STATE;
         mach_msg_type_number_t exc_state_count = i386_EXCEPTION_STATE_COUNT;
         i386_exception_state_t exc_state;
         thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);
+#endif
         exception_ref = exc_state.faultvaddr;
 		//fprintf(stderr, "Hit breakpoint at %x\n", exception_at);
         result = KERN_SUCCESS;
 
         //fprintf(stderr, "  continuing from catch_exception_raise\n");
-    } else if (exception == EXC_BAD_ACCESS){
+    }
+	else if (exception == EXC_BAD_ACCESS)
+	{
 		// This is bad - or good :) //
 		// set globals
 		thread_id = thread;
 		exception_code = exception;
+#if __LP64__
+		exception_at = state->rip;   
+        thread_state_flavor_t flavor = x86_EXCEPTION_STATE64;
+        mach_msg_type_number_t exc_state_count = x86_THREAD_STATE64_COUNT;
+        x86_thread_state64_t exc_state;
+        thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);		
+#else
 		exception_at = state->eip;   
         thread_state_flavor_t flavor = i386_EXCEPTION_STATE;
         mach_msg_type_number_t exc_state_count = i386_EXCEPTION_STATE_COUNT;
         i386_exception_state_t exc_state;
         thread_get_state(thread,flavor, (natural_t*)&exc_state, &exc_state_count);
+#endif
         exception_ref = exc_state.faultvaddr;
 		result = KERN_SUCCESS;
-	} else {
+	} 
+	else
+	{
 
         // Other exceptions are SEP (somebody else's problem).
 
@@ -339,7 +490,8 @@ extern kern_return_t catch_exception_raise_state_identity(
 
         //fprintf(stderr, "  passing the buck\n");
     }
-    
+*/
+	  result = KERN_SUCCESS;
     return result;
 }
 
@@ -357,10 +509,8 @@ mach_port_t init(int pid){
     mach_port_t *     exceptionPort = malloc(sizeof(mach_port_t));
     mach_port_t me;
 	task_t targetTask;
+	// http://web.mit.edu/darwin/src/modules/xnu/osfmk/man/task_set_exception_ports.html
     exception_mask_t  mask = EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION | EXC_MASK_ARITHMETIC | EXC_MASK_SOFTWARE | EXC_MASK_BREAKPOINT | EXC_MASK_SYSCALL;
-
-    //fprintf(stderr, "Hello Cruel World!\n");
-    //fprintf(stderr, "pid = %d\n", pid);
     
     // Create a port by allocating a receive right, and then create a send right 
     // accessible under the same name.
@@ -377,11 +527,22 @@ mach_port_t init(int pid){
 	
     /* get the old exception ports */
 	task_get_exception_ports(targetTask, mask, old_exc_ports.masks, &old_exc_ports.count, old_exc_ports.ports, old_exc_ports.behaviors, old_exc_ports.flavors);
-	
+
     /* set the new exception ports */
-	task_set_exception_ports(targetTask, mask, *exceptionPort, EXCEPTION_STATE_IDENTITY, i386_THREAD_STATE);
-//	task_set_exception_ports(targetTask, mask, exceptionPort, EXCEPTION_STATE_IDENTITY, MACHINE_THREAD_STATE);
-//task_set_exception_ports(targetTask, mask, exceptionPort, EXCEPTION_DEFAULT, MACHINE_THREAD_STATE);
+#if __LP64__
+	task_set_exception_ports(targetTask,               // target thread
+							 mask,                     // exception types
+							 *exceptionPort,           // the port
+							 EXCEPTION_DEFAULT | MACH_EXCEPTION_CODES, // behavior, we OR with MACH_EXCEPTION_CODES for 64bits
+							 x86_THREAD_STATE64);       // flavor
+	
+#else
+	task_set_exception_ports(targetTask,               // target thread
+							 mask,                     // exception types
+							 *exceptionPort,           // the port
+							 EXCEPTION_DEFAULT | MACH_EXCEPTION_CODES, // behavior, we OR with MACH_EXCEPTION_CODES for 64bits
+							 i386_THREAD_STATE);       // flavor
+#endif
 	return *exceptionPort;
 }
 
@@ -400,7 +561,7 @@ struct {
 	} msg;
 
 /* returns 1 if an event occured, 0 if it times out */
-int my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *ec, unsigned int *eat, unsigned int *eref){
+int my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *ec, unsigned long *eat, unsigned long *eref){
 	mach_msg_return_t r;
 
 	r = mach_msg(&msg.head,
@@ -419,17 +580,20 @@ int my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *ec
 	}
 
 	/* Handle the message (calls catch_exception_raise) */
+	// we should use mach_exc_server for 64bits
+	mach_exc_server(&msg.head, &reply.head);
+/*
 	if(!exc_server(&msg.head,&reply.head)){
 		//printf("exc_server error\n");
 //		exit(-1);
 	}
-
+*/
 	*id = thread_id;
 	*ec = XToWinException(exception_code);
 	*eat = exception_at;
 	*eref = exception_ref;
 
-	//printf("**************************************Got exception code %d\n", exception_code);
+//	printf("**************************************Got exception code %x\n", *ec);
 	
 	r = mach_msg(
 		&reply.head,
@@ -449,3 +613,5 @@ int my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *ec
 
 	return 1;
 }
+
+

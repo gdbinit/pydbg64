@@ -24,7 +24,11 @@ int macosx_locate_dyld(int pid, unsigned int *addr){
 	task_t port = getport(pid);
 
 	do {
+#if __LP64__
+			kret = vm_region_64 (port, (unsigned long *) &test_addr, (unsigned long *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &info_cnt, &object_name);
+#else
 			kret = vm_region (port, (unsigned int *) &test_addr, (unsigned int *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &info_cnt, &object_name);
+#endif
 
 			if (kret != KERN_SUCCESS)
 				return -1;
@@ -52,8 +56,11 @@ int dyld_starts_here_p (task_t port, mach_vm_address_t addr)
 	vm_size_t data_count;
 
 	struct mach_header *mh;
-
+#if __LP64__
+	ret = vm_region_64 (port, (unsigned long *) &address, (unsigned long *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) & info, &info_cnt, &object_name);
+#else
 	ret = vm_region (port, (unsigned int *) &address, (unsigned int *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) & info, &info_cnt, &object_name);
+#endif
 
 	if (ret != KERN_SUCCESS)
 		return 0;

@@ -5,6 +5,7 @@
 #include <mach/mach.h>
 #include <mach/mach_traps.h>
 #include <mach/mach_types.h>
+#include <mach/mach_vm.h>
 #include <string.h>
 #include <mach/thread_status.h>
 #include <unistd.h>
@@ -91,17 +92,19 @@ int detach(int pid, mach_port_t *ep){
 }
 
 void get_task_threads(int pid, thread_act_port_array_t *thread_list, mach_msg_type_number_t *thread_count){
-	//fprintf(stderr, "get_task_threads %x\n", pid);
+//	fprintf(stderr, "get_task_threads %x\n", pid);
         task_t port =  getport(pid);
         task_threads(port, thread_list, thread_count);
-	//fprintf(stderr, "Got %d threads from %d\n", *thread_count, pid);
+//	fprintf(stderr, "Got %d threads from %d\n", *thread_count, pid);
 }
 
-int virtual_free(int pid, int address, int size){
+int virtual_free(int pid, mach_vm_address_t address, mach_vm_size_t size){
+
     	int sts;
-        task_t port = getport(pid);
+        vm_map_t port = getport(pid);
 	//fprintf(stderr, "virtual_free %x %x %x\n", pid, address, size);
-        kern_return_t err = vm_deallocate(port, address, size);
+        kern_return_t err = mach_vm_deallocate(port, address, size);
+	
         if(err!= KERN_SUCCESS){
                 sts = 0;
         } else {
@@ -163,69 +166,104 @@ static int XToWinProtection(vm_prot_t mac){
         return ret;
 }
 
-int virtual_protect(int pid, int address, int size, int type){
-        task_t port = getport(pid);
-		//fprintf(stderr, "virtual_protect %x %x %x %x\n", pid, address, size, type);
+int virtual_protect(int pid, mach_vm_address_t address, mach_vm_size_t size, vm_prot_t type){
+        vm_map_t port = getport(pid);
+//		fprintf(stderr, "virtual_protect %x %p %x %x\n", pid, (void *)address, size, type);
         int sts;
+		// convert from Windows to OS X protection
         vm_prot_t mac_prot = winToXProtection(type);
 
-		//fprintf(stderr, "vm_protect(%x, %x, %x, %x, %x)\n", port, address, size, FALSE, mac_prot);
-        kern_return_t err = vm_protect(port, address, size, FALSE, mac_prot);
+//		fprintf(stderr, "vm_protect(%x, %p, %d, %x, %x)\n", port, (void*) address, (int)size, FALSE, mac_prot);
+    
+		kern_return_t err = mach_vm_protect(port, address, size, FALSE, mac_prot);
+	
         if(err == KERN_SUCCESS){
                 sts = 1;
         } else if(err == KERN_PROTECTION_FAILURE){
 				sts = 1;  // hopefully they are setting up to read only
-			//fprintf(stderr, "Failed to protect\n");
+				fprintf(stderr, "[IMPLEMENTATION.C] virtual_protect Failed to protect\n");
+		} else if(err == KERN_INVALID_ADDRESS){
+				sts = 1;
+				fprintf(stderr, "[IMPLEMENTATION.C] virtual_protect The address %p is illegal or specifies a non-allocated region.\n", (void*)address);
 		} else {
-                //fprintf(stderr, "Opps, got %d return from vm_protect\n", err);
+                fprintf(stderr, "[IMPLEMENTATION.C] virtual_protect Opps, got %d return from vm_protect\n", err);
                 sts = 1;  // Probably memory is not allocated.
         }
         return sts;
 }
 
-char *allocate(int pid, int address, int size){
+char *allocate(int pid, mach_vm_address_t address, mach_vm_size_t size){
         char *data;
 	//fprintf(stderr, "allocate %d %d %d\n", pid, address, size);
-        task_t port = getport(pid);
-        kern_return_t err = vm_allocate(port, (vm_address_t*) &data, size, VM_FLAGS_ANYWHERE);
-        if(err!= KERN_SUCCESS){
+        vm_map_t port = getport(pid);
+
+		kern_return_t err = mach_vm_allocate(port, (mach_vm_address_t*) &data, size, VM_FLAGS_ANYWHERE);
+        
+		if(err!= KERN_SUCCESS)
+		{
+				fprintf(stderr,"[IMPLEMENTATION.C] allocate failed!\n");
                 data = NULL;
         } 
 		//fprintf(stderr, "ALLOCATE RETURNED WITH %x\n", (unsigned int) data);
         return data;
 }
 
-int read_memory(int pid, unsigned int addr, int len, char *data){
-		//fprintf(stderr, "read_memory %x %x %x\n", pid, addr, len);
-        mach_msg_type_number_t nread;
-        task_t port = getport(pid);
-        vm_read_overwrite(port, addr, len, (int) data, &nread);
+int read_memory(int pid, mach_vm_address_t addr, mach_vm_size_t len, char *data){
+//		fprintf(stderr, "!read_memory %d %p %x\n", pid, (void *)addr, len);
+        mach_vm_size_t nread ;
+        vm_map_t port = getport(pid);
+	
+/*		mach_msg_type_number_t local_size = vm_page_size;
+		vm_offset_t localaddress;
+		vm_read(port, (mach_vm_address_t) addr, (mach_vm_size_t) len, &localaddress, &local_size);
+		printf("Address:%lx Data:%x\n", addr, *(unsigned char*)localaddress);
+*/	
+        mach_vm_read_overwrite(port, addr, len, (mach_vm_address_t)data, &nread);
+//        vm_read(port, (mach_vm_address_t) addr, (mach_vm_size_t) len, (vm_offset_t *) data, &nread);
         if(nread != len){
                 //fprintf(stderr, "Error reading memory, requested %d bytes, read %d\n", len, nread);
 //                return 0;  // bad
         }
-      	return 1;
+/*		if (data != NULL)
+			printf("[DEBUG] read %d bytes data is: %x\n", nread, *data);
+*/
+		return 1;
 }
 
-int write_memory(int pid, unsigned int addr, int len, char *data){
-	//fprintf(stderr, "write_memory %x %x %x\n", pid, addr, len);
-        task_t port = getport(pid);
-		kern_return_t ret = vm_write(port, addr, (pointer_t) data, len);
-        if(ret){
-			//fprintf(stderr, "Failed to write to %x", addr);
+int write_memory(int pid, mach_vm_address_t addr, mach_msg_type_number_t len, char *data){
+//		fprintf(stderr, "write_memory %d %p %x\n", pid, (void *)addr, len);
+        vm_map_t port = getport(pid);
+
+		kern_return_t ret = mach_vm_write(port, addr, (vm_offset_t) data, len);
+        if(ret != KERN_SUCCESS)
+		{
+			//fprintf(stderr, "Failed to write to %lx", addr);
+			mach_error("mach_vm_write: ", ret);
 				if(ret == KERN_PROTECTION_FAILURE)
-					//fprintf(stderr, "error writing to %x: Specified memory is valid, but does not permit writing\n", addr);
+					fprintf(stderr, "error writing to %p: Specified memory is valid, but does not permit writing\n", (void *)addr);
 				if(ret == KERN_INVALID_ADDRESS)
-					//fprintf(stderr, "error writing to %x: The address is illegal or specifies a non-allocated region\n", addr);
+					fprintf(stderr, "error writing to %p: The address is illegal or specifies a non-allocated region\n", (void *)addr);
 				return 0;
         }	
         return 1;
 }
 
+#if __LP64__
+int get_context(thread_act_t thread, x86_thread_state64_t *state){
+#else
 int get_context(thread_act_t thread, i386_thread_state_t *state){
+#endif
 	//fprintf(stderr, "get_context %x: %x\n", thread, state->eip);
+#if __LP64__
+		mach_msg_type_number_t sc = x86_THREAD_STATE64_COUNT;
+        thread_get_state( thread, x86_THREAD_STATE64, (thread_state_t) state, &sc);
+//		fprintf(stderr, "get_context %x: %p\n", thread, (void *)state->__rip);
+#else
         mach_msg_type_number_t sc = i386_THREAD_STATE_COUNT;
         thread_get_state( thread, i386_THREAD_STATE, (thread_state_t) state, &sc);
+//		fprintf(stderr, "get_context %x: %x\n", thread, state->eip);
+#endif
+
         return 0;
 }
 
@@ -245,48 +283,68 @@ int suspend_thread(unsigned int thread){
 int resume_thread(unsigned int thread){
         int i;
         kern_return_t ret;
-	//fprintf(stderr, "resume_thread %x\n", thread);
+
         unsigned int size = THREAD_BASIC_INFO_COUNT;
         struct thread_basic_info info;
 
         ret = thread_info(thread, THREAD_BASIC_INFO, (thread_info_t) &info, &size);
-        if(ret != KERN_SUCCESS){
-                //fprintf(stderr, "Failed to get thread info 1, got %d\n", ret);
+	
+        if(ret != KERN_SUCCESS)
+		{
+                fprintf(stderr, "Failed to get thread info 1, got %d\n", ret);
 // return ok for the case when the process is going away                return -1;
 			return 0;
         }
+	
         for(i = 0; i < info.suspend_count; i++){
                 ret = thread_resume(thread);
                 if(ret != KERN_SUCCESS){
-                        //fprintf(stderr, "Failed to get thread info 2, got %d\n", ret);
+                        fprintf(stderr, "Failed to get thread info 2, got %d\n", ret);
                         return -1;
                 }
         }
         return 0;
 }
 
-int virtual_query(int pid, unsigned int *baseaddr, unsigned int *prot, unsigned int *size){
-        task_t port = getport(pid);
-		//fprintf(stderr, "virtual_query %x %x %x\n", pid, *baseaddr, *size);
-        mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT;
-        struct vm_region_basic_info info;
-        mach_port_t objectName = MACH_PORT_NULL;
-		unsigned int requested_base = *baseaddr;
-        kern_return_t result = vm_region(port, baseaddr, size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &count, &objectName);
 
+int virtual_query(int pid, mach_vm_address_t *baseaddr, unsigned int *prot, mach_vm_size_t *size){
+    
+		task_t port = getport(pid);
+		//fprintf(stderr, "virtual_query %x %x %x\n", pid, *baseaddr, *size);
+
+		// since we are using mach_vm_region we should use the new structures - support both 32 and 64 bits
+		mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
+		struct vm_region_basic_info_64 info;
+		mach_port_t objectName = MACH_PORT_NULL;
+		mach_vm_address_t requested_base = *baseaddr;
+
+		kern_return_t result = mach_vm_region(port, baseaddr, size, VM_REGION_BASIC_INFO_64, (vm_region_info_t) &info, &count, &objectName);
+	
 		// what can go wrong?  
 		// No allocated pages at or after the requested addy
 		// we just make up one for the rest of memory
         if(result != KERN_SUCCESS){
-				//fprintf(stderr, "virtual_query failing case 1");
+//				fprintf(stderr, "[IMPLEMENTATION.C] virtual_query failing case 1\n");
+#if __LP64__
+				*size = 0xffffffffffffffff - requested_base + 1;
+#else
 				*size = 0xffffffff - requested_base + 1;
+#endif
 				*prot = PAGE_NOACCESS;
                 return 0;
         }
+	
+		if (VM_REGION_BASIC_INFO_COUNT_64 != count)
+		{
+			fprintf(stderr, "vm_region returned a bad info count");
+		}
 		// Mac scans ahead to the next allocated region, windows doesn't
 		// We just make up a region at the base that isn't accessible so that iterating through memory works :/
+		// this will bring problems with 64bit binaries because addressing starts at vmaddr 0x0000000100000000
+		// and we can have requests for lower addresses
+// FIXME
 		if(*baseaddr > requested_base){
-				//fprintf(stderr, "virtual_query failing case 2, baseaddr=%x, requested_base=%x\n", *baseaddr, requested_base);
+//				fprintf(stderr, "[IMPLEMENTATION.C] virtual_query failing case 2, baseaddr=%p, requested_base=%p\n", (void *)*baseaddr, (void *)requested_base);
 				*size = *baseaddr - requested_base;
 				*baseaddr = requested_base;
 				*prot = PAGE_NOACCESS;
@@ -298,4 +356,7 @@ int virtual_query(int pid, unsigned int *baseaddr, unsigned int *prot, unsigned 
 		//fprintf(stderr, "Virtual query suceeded\n");
         return 0;
 }
+
+
+		
 
