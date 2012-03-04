@@ -1,3 +1,46 @@
+    _____               _____                                     
+ __|__   |__ __    _ __|__   |__  ______  ______   ____   __   _  
+|     |     |\ \  //|     \     ||      >|   ___| /   /_ |  | | | 
+|    _|     | \ \// |      \    ||     < |   |  ||   _  ||  |_| | 
+|___|     __| /__/  |______/  __||______>|______||______|'----__| 
+    |_____|             |_____|                                    
+
+PyDBG64 - OS X PyDbg with 64 bits support
+
+Original OS X port by Charlie Miller
+Fixes and 64 bits support by fG!, reverser@put.as - http://reverse.put.as
+ 
+Welcome,
+
+This is an updated version of PyDbg for OS X that supports 64 bits targets.
+It still does not support all features available in the Windows version but it can already be
+used for scripted debugging of 32 and 64bits OS X targets.
+
+It supports the libdasm disassembler library and also distorm3. I have uploaded the libdasm version
+that I use into the github repo with a small fix to multi-byte nops.
+
+At this moment I have no idea if this is compatible with Pai Mei framework. In principle the 32bits
+part should work, but I barely used Pai Mei so it's untested.
+
+There are still some missing features on the macdll that I am working at and will update.
+
+The single-step feature is in an unstable state. Apple for some weird reason cleans the CPU resume
+flag so kernel needs to be patched. I need to verify in what state I left this, two years ago ;-)
+
+Many thanks go to the company that indirectly sponsored this update :-) !
+
+Tested with Python 2.6.x and 2.7.x.
+
+From the old instructions, what you need is the pydasm install and python procmod permissions.
+You also need to compile the macdll and copy it to pydbg folder.
+
+This is still quite a hack but it should work! I hope to get this into a more stable state soon.
+
+Contributions are welcome :-)
+
+Enjoy,
+fG!
+
 **** OLD INSTRUCTIONS, TO BE UPDATED ****
 
 Welcome to Pai Mei/PyDbg for Mac OS X.  This code is still under development so probably has bugs.  Please 
