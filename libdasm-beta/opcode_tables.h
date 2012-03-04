@@ -348,7 +348,7 @@ INST inst_table2[256] = {
 /*0F 1C*/{ INSTRUCTION_TYPE_OTHER,  NULL,        FLAGS_NONE,                  FLAGS_NONE,                FLAGS_NONE,   0, 0, 0, 0, 0 },
 /*0F 1D*/{ INSTRUCTION_TYPE_OTHER,  NULL,        FLAGS_NONE,                  FLAGS_NONE,                FLAGS_NONE,   0, 0, 0, 0, 0 },
 /*0F 1E*/{ INSTRUCTION_TYPE_OTHER,  NULL,        FLAGS_NONE,                  FLAGS_NONE,                FLAGS_NONE,   0, 0, 0, 0, 0 },
-/*0F 1F*/{ INSTRUCTION_TYPE_OTHER,  NULL,        FLAGS_NONE,                  FLAGS_NONE,                FLAGS_NONE,   0, 0, 0, 0, 0 },
+/*0F 1F*/{ INSTRUCTION_TYPE_OTHER,  "nop",       AM_E|OT_v|P_w,               FLAGS_NONE,                FLAGS_NONE,   1, 0, 0, 0, 0 },
 /*0F 20*/{ INSTRUCTION_TYPE_PRIV,   "mov",       AM_R|OT_d|P_w,               AM_C|OT_d|P_r,             FLAGS_NONE,   1, 0, 0, 0, 0 },
 /*0F 21*/{ INSTRUCTION_TYPE_PRIV,   "mov",       AM_R|OT_d|P_w,               AM_D|OT_d|P_r,             FLAGS_NONE,   1, 0, 0, 0, 0 },
 /*0F 22*/{ INSTRUCTION_TYPE_PRIV,   "mov",       AM_C|OT_d|P_w,               AM_R|OT_d|P_r,             FLAGS_NONE,   1, 0, 0, 0, 0 },
