@@ -1,14 +1,27 @@
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/ptrace.h>
-#include <stdio.h>
-#include <errno.h>
+/*
+ *     _____               _____                                     
+ *  __|__   |__ __    _ __|__   |__  ______  ______   ____   __   _  
+ * |     |     |\ \  //|     \     ||      >|   ___| /   /_ |  | | | 
+ * |    _|     | \ \// |      \    ||     < |   |  ||   _  ||  |_| | 
+ * |___|     __| /__/  |______/  __||______>|______||______|'----__| 
+ *     |_____|             |_____|                                    
+ *
+ * PyDBG64 - OS X PyDbg with 64 bits support
+ * 
+ * Original OS X port by Charlie Miller
+ * Fixes and 64 bits support by fG!, reverser@put.as - http://reverse.put.as
+ *
+ * macdll.c
+ *
+ */
 
 #include "MacDll.h"
-#include "dyld.h"
+//#include "dyld.h"
+//#include "implementation.h"
+//#include "Exception.h"
 
 #define EXPORT __attribute__((visibility("default")))
+#define DEBUG 1
 
 // Globals
 static mach_port_t exception_port;
@@ -21,11 +34,12 @@ static thread_act_port_array_t thread_list;
 static mach_msg_type_number_t thread_max;
 static int thread_cur;
 static long allocated_fs_base;
-
+static pid_t target_pid;
 
 //Initializer.
 __attribute__((constructor))
-static void initializer(void) {
+static void initializer(void) 
+{
 	kinfo = 0;
 	allocated_fs_base = 0;
 	//printf("[%s] initializer for me()\n", __FILE__);
@@ -33,12 +47,14 @@ static void initializer(void) {
       
 // Finalizer.
 __attribute__((destructor))
-static void finalizer(void) {
+static void finalizer(void) 
+{
 	//printf("[%s] finalizer()\n", __FILE__);
 }
           
 EXPORT
-void GetSystemInfo(LPSYSTEM_INFO lpSystemInfo){
+void GetSystemInfo(LPSYSTEM_INFO lpSystemInfo)
+{
 	host_name_port_t myhost;
 	host_basic_info_data_t hinfo;
 	vm_size_t page_size;
@@ -55,7 +71,10 @@ void GetSystemInfo(LPSYSTEM_INFO lpSystemInfo){
 }
 
 EXPORT
-BOOL CloseHandle(HANDLE hObject){
+BOOL CloseHandle(HANDLE hObject)
+{
+#pragma unused(hObject)
+    
 	if(kinfo){
 		free(kinfo);
 		kinfo = 0;
@@ -70,18 +89,43 @@ BOOL CloseHandle(HANDLE hObject){
 EXPORT
 BOOL StartProcess(DWORD dwProcessId)
 {
-	int error;
-	printf("[DEBUG] Calling PT_CONTINUE %d!\n",(int)dwProcessId);
-	error = ptrace(PT_CONTINUE, dwProcessId, (char *) 1, 0);
-	if errno printf("Errno: %s\n", strerror(errno));		
-	fflush(stdout);
-	return(error);
+//	int error = 0;
+//	printf("[DEBUG] Calling PT_CONTINUE %d!\n",(int)dwProcessId);
+////	error = ptrace(PT_CONTINUE, dwProcessId, (char *) 1, 0);
+//    kill(target_pid, SIGCONT);
+//	if errno printf("Errno: %s\n", strerror(errno));		
+//	fflush(stdout);
+//	return(error);
+//    
+    task_t targetTask;
+    mach_port_t me = mach_task_self();
+	thread_act_port_array_t thread_list;
+	mach_msg_type_number_t thread_count,i;
+	kern_return_t kr;
+	task_for_pid(me, target_pid, &targetTask);
+	kr = task_threads(targetTask, &thread_list, &thread_count);
+	if (thread_count > 0)
+	{
+		i = thread_count;
+		printf("[INFO] Available threads:\n");
+		while (i--)
+		{
+			printf("[%d] %d\n", i, thread_list[i]);
+            resume_thread(thread_list[i]);
+		}
+	}
+	return(0);
+
 }
 
 EXPORT
-BOOL DebugActiveProcess(DWORD dwProcessId){
+BOOL DebugActiveProcess(DWORD dwProcessId)
+{
+#if DEBUG
+    printf("[DEBUG] Initializing debug port\n");
+#endif
 	kill_on_exit = 0;
-	current_pid = dwProcessId;
+	current_pid  = dwProcessId;
 
 	/* stuff that needs to be set each time you attach to a process */
 	kinfo = 0;
@@ -90,13 +134,14 @@ BOOL DebugActiveProcess(DWORD dwProcessId){
 }
 
 EXPORT
-BOOL WaitForDebugEvent(LPDEBUG_EVENT lpDebugEvent, DWORD dwMilliseconds){
+BOOL WaitForDebugEvent(LPDEBUG_EVENT lpDebugEvent, DWORD dwMilliseconds)
+{
 	int ret, ec, id;
 	unsigned long eat, eref;
 	ret = my_msg_server(exception_port, dwMilliseconds, &id, &ec, &eat, &eref);
 	
 	lpDebugEvent->dwThreadId = id;
-	lpDebugEvent->dwDebugEventCode = EXCEPTION_DEBUG_EVENT;
+	lpDebugEvent->dwDebugEventCode = EXCEPTION_DEBUG_EVENT; // FIXME for other events???
 	lpDebugEvent->u.Exception.ExceptionRecord.ExceptionCode = ec;
 	lpDebugEvent->u.Exception.ExceptionRecord.ExceptionAddress = eat;
 	lpDebugEvent->u.Exception.ExceptionRecord.ExceptionInformation[0] = 0; // just a guess
@@ -107,25 +152,32 @@ BOOL WaitForDebugEvent(LPDEBUG_EVENT lpDebugEvent, DWORD dwMilliseconds){
 }
 
 EXPORT
-BOOL ContinueDebugEvent(DWORD dwProcessId, DWORD dwThreadId, DWORD dwContinueStatus){
-#if __LP64__
-	x86_thread_state64_t state;
-#else
-	i386_thread_state_t state;
-#endif
-	
-	get_context(dwThreadId, &state);	
+BOOL ContinueDebugEvent(DWORD dwProcessId, DWORD dwThreadId, DWORD dwContinueStatus)
+{
+#pragma unused(dwProcessId)
+#pragma unused(dwContinueStatus)
+
+    // FIXME? why the state code? not being used...
+//#if __LP64__
+//	x86_thread_state64_t state;
+//#else
+//	i386_thread_state_t state;
+//#endif
+//	
+//	get_context(dwThreadId, &state);	
 	return resume_thread(dwThreadId);
 }
 
 EXPORT
-BOOL DebugSetProcessKillOnExit(BOOL KillOnExit){
+BOOL DebugSetProcessKillOnExit(BOOL KillOnExit)
+{
 	kill_on_exit = KillOnExit;
 	return 1;
 }
 
 EXPORT
-BOOL DebugActiveProcessStop(DWORD dwProcessId){
+BOOL DebugActiveProcessStop(DWORD dwProcessId)
+{
 	int ret = detach(dwProcessId, &exception_port);
 	if(kill_on_exit){
 		TerminateProcess(dwProcessId, 0);
@@ -134,7 +186,10 @@ BOOL DebugActiveProcessStop(DWORD dwProcessId){
 }
 
 EXPORT
-BOOL TerminateProcess(HANDLE hProcess, UINT uExitCode){
+BOOL TerminateProcess(HANDLE hProcess, UINT uExitCode)
+{
+#pragma unused(uExitCode)
+    
 	int sts = kill(hProcess, 9);
 //	printf("Just did kill on %d", hProcess);
 	sts++;
@@ -142,7 +197,10 @@ BOOL TerminateProcess(HANDLE hProcess, UINT uExitCode){
 }
 
 EXPORT
-HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID){
+HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID)
+{
+#pragma unused(dwFlags)
+    
 //	fprintf(stderr, "CreateToolhelp32Snapshot %lx %ld\n", dwFlags, th32ProcessID);
 	int ctl[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
 	size_t size = 0;
@@ -162,7 +220,10 @@ HANDLE CreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID){
 }
 
 EXPORT
-BOOL Thread32First(HANDLE hSnapshot, LPTHREADENTRY32 lpte){
+BOOL Thread32First(HANDLE hSnapshot, LPTHREADENTRY32 lpte)
+{
+#pragma unused(hSnapshot)
+        
 	if(thread_cur < thread_max)
 	{
 		lpte->th32ThreadID = thread_list[thread_cur];
@@ -176,7 +237,10 @@ BOOL Thread32First(HANDLE hSnapshot, LPTHREADENTRY32 lpte){
 }
 
 EXPORT
-BOOL Thread32Next(HANDLE hSnapshot, LPTHREADENTRY32 lpte){
+BOOL Thread32Next(HANDLE hSnapshot, LPTHREADENTRY32 lpte)
+{
+#pragma unused(hSnapshot)
+    
 	if(thread_cur < thread_max)
 	{
 		lpte->th32ThreadID = thread_list[thread_cur];
@@ -189,7 +253,9 @@ BOOL Thread32Next(HANDLE hSnapshot, LPTHREADENTRY32 lpte){
 }
 
 EXPORT
-BOOL Process32First(HANDLE hSnapshot, LPPROCESSENTRY32 lppe){	
+BOOL Process32First(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
+{
+#pragma unused(hSnapshot)
 // FIXME - p_comm is restricted to 16 chars so we could improve this
 	if(kinfo_cur < kinfo_max)
 	{
@@ -204,7 +270,10 @@ BOOL Process32First(HANDLE hSnapshot, LPPROCESSENTRY32 lppe){
 }
 
 EXPORT
-BOOL Process32Next(HANDLE hSnapshot, LPPROCESSENTRY32 lppe){
+BOOL Process32Next(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
+{
+#pragma unused(hSnapshot)
+    
 	if(kinfo_cur < kinfo_max)
 	{
 		lppe->th32ProcessID = kinfo[kinfo_cur].kp_proc.p_pid;
@@ -218,7 +287,8 @@ BOOL Process32Next(HANDLE hSnapshot, LPPROCESSENTRY32 lppe){
 }
 
 EXPORT
-BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext){
+BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
+{
 	mach_msg_type_number_t sc;
 #if __LP64__
 //	printf("64bits GetThreadContext on thread %d\n", hThread);
@@ -289,13 +359,12 @@ BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext){
 	lpContext->Dr6 = debug.dr6;
 	lpContext->Dr7 = debug.dr7;
 #endif
-
-
 	return 1;
 }
 
 EXPORT
-BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext){
+BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
+{
 	mach_msg_type_number_t sc;
 	kern_return_t result;
 
@@ -324,7 +393,8 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext){
 	state.__r15 = lpContext->R15;
 	sc = x86_THREAD_STATE64_COUNT;
 	result = thread_set_state( hThread, x86_THREAD_STATE64, (thread_state_t) &state, sc);
-	if(result != KERN_SUCCESS){
+	if (result != KERN_SUCCESS)
+    {
 		printf("64bits thread set state failed!\n");
 		return 0;
 	}
@@ -338,7 +408,8 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext){
 	debug.__dr7 = lpContext->Dr7;
 	sc = x86_DEBUG_STATE64_COUNT;
 	result = thread_set_state( hThread, x86_DEBUG_STATE64, (thread_state_t) &debug, sc);
-	if(result != KERN_SUCCESS){
+	if (result != KERN_SUCCESS)
+    {
 		printf("64 bits thread set state debug failed!\n");
 		return 0;
 	}
@@ -363,7 +434,8 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext){
 	state.gs = lpContext->SegGs;	
 	sc = i386_THREAD_STATE_COUNT;
 	result = thread_set_state( hThread, i386_THREAD_STATE, (thread_state_t) &state, sc);
-	if(result != KERN_SUCCESS){
+	if (result != KERN_SUCCESS)
+    {
 		return 0;
 	}
 
@@ -376,7 +448,8 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext){
 	debug.dr7 = lpContext->Dr7;
 	sc = x86_DEBUG_STATE32_COUNT;
 	result = thread_set_state( hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, sc);
-	if(result != KERN_SUCCESS){
+	if (result != KERN_SUCCESS)
+    {
 		return 0;
 	}
 #endif	
@@ -384,92 +457,140 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext){
 }
 
 EXPORT
-BOOL CreateProcessA(LPCTSTR lpApplicationName, LPTSTR lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes, LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags, LPVOID lpEnvironment, LPCTSTR lpCurrentDirectory, LPSTARTUPINFO lpStartupInfo, LPPROCESS_INFORMATION lpProcessInformation){
+BOOL CreateProcessA(LPCTSTR lpApplicationName, 
+                    LPTSTR lpCommandLine, 
+                    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+                    LPSECURITY_ATTRIBUTES lpThreadAttributes, 
+                    BOOL bInheritHandles, 
+                    DWORD dwCreationFlags, 
+                    LPVOID lpEnvironment,
+                    LPCTSTR lpCurrentDirectory,
+                    LPSTARTUPINFO lpStartupInfo, 
+                    LPPROCESS_INFORMATION lpProcessInformation )
+{
 
 	// problem here in OS X because we are not suspending the target so it will happily run ! :-)
 	// we need to use ptrace to start the new target in a suspended state, which happens in Win32 with
 	// the DEBUG_PROCESS/DEBUG_ONLY_THIS_PROCESS flags to CreateProcessA
 	// fG! - 04/10/2010
-//	printf("Creating process %s %s\n", lpApplicationName, lpCommandLine);
-	pid_t pid = vfork();
-	int error;
-	if(pid == 0)
-	{ // child
-		char commandline[256];
-		if (strlen(lpCommandLine) != 0 )
-		{
-			strncpy(commandline, lpCommandLine, 255);
-			commandline[255] = 0;
-			// parse command line;
-			int i=0;
-			char *p = strchr(commandline, ' ');
-			char *q = commandline;
-			char *argv[16];
-			while(p){
-				*p = 0;
-				argv[i++] = q;
-				fflush(stdout);
-				q = p + 1;
-				p = strchr(commandline, ' ');
-			}
-			errno = 0;
-			// the new process will start in a suspended state
-			error = ptrace(PT_TRACE_ME, 0, 0, 0);
-			if errno printf("PT_TRACE_ME Errno: %s\n", strerror(errno));
-			argv[i] = q;
-			argv[i+1] = 0;
-			printf("Execing %s %s %s", argv[0], argv[1], argv[2]);
-			fflush(stdout);
-			execv(argv[0], argv);
-			perror("Failed to execv!"); 			
-		}
-		else {
-			// the new process will start in a suspended state
-			ptrace(PT_TRACE_ME, 0, 0, 0);
-			fflush(stdout);
-			// execute with no arguments
-			char *cmd[] = { lpApplicationName, (char *)0 };
-			printf("[DEBUG] execvin'g...\n");
-			execv(lpApplicationName, cmd);
-			perror("Failed to execv!");
-		}
-	}
-	else if (pid < 0)
-	{ // something went bad!
-		perror("Vfork failed!");
-	}
-	else
-	{ // parent
-		int status;
-		wait(&status);
-		errno = 0;
-		// initialize the mach port into the debugee
-		DebugActiveProcess(pid);
-		// and now we can continue the process
-		// CLEANME
-//		sleep(3);
-		error = ptrace(PT_CONTINUE, pid, (char *) 1, 0);
-		if errno printf("PT_CONTINUE Errno: %s\n", strerror(errno));		
-		fflush(stdout);
-		lpProcessInformation->hProcess = pid;
-		lpProcessInformation->dwProcessId = pid;
-	}
+#if DEBUG
+	printf("[DEBUG] Creating process %s %s\n", lpApplicationName, lpCommandLine);
+#endif
+    posix_spawnattr_t attr;
+    int retval      = 0;
+    size_t copied   = 0;
+    short flags     = 0;
+    // default target is 32bits
+    cpu_type_t cpu  = CPU_TYPE_I386;
+
+    if (dwCreationFlags & TARGET_IS_64BITS)
+        cpu = CPU_TYPE_X86_64;
+
+    retval = posix_spawnattr_init (&attr);
+    // set process flags
+    // the new process will start in a suspended state and permissions reset to real uid/gid
+    flags = POSIX_SPAWN_RESETIDS | POSIX_SPAWN_START_SUSPENDED;
+    // disable ASLR, default is YES
+    // Snow Leopard will just ignore this flag
+    if (dwCreationFlags & _POSIX_SPAWN_DISABLE_ASLR)
+        flags |= _POSIX_SPAWN_DISABLE_ASLR;
+    
+    retval = posix_spawnattr_setflags(&attr, flags);
+
+    // reset signals, ripped from LLDB :-]
+    sigset_t no_signals;
+    sigset_t all_signals;
+    sigemptyset (&no_signals);   
+    sigfillset (&all_signals);
+    posix_spawnattr_setsigmask(&attr, &no_signals);
+    posix_spawnattr_setsigdefault(&attr, &all_signals);
+    // set the target cpu to be used, due to fat binaries
+    retval = posix_spawnattr_setbinpref_np(&attr, 1, &cpu, &copied);
+    
+    char *spawnedEnv[] = { NULL };
+    
+    int cmd_line_len = strlen(lpCommandLine);
+    if (cmd_line_len >= ARG_MAX)
+    {
+        fprintf(stderr, "[ERROR] arg list too long\n");
+        exit(1);
+    }
+
+    if (cmd_line_len)
+    {
+        // parse command line;
+        int i = 0;
+        char *p = strchr(lpCommandLine, ' ');
+        char *q = lpCommandLine;
+
+        char **argv = malloc(sizeof(char*) * 256);
+        while (p && i < 253) 
+        {
+            *p = '\0';
+            argv[i++] = q;
+            q = p + 1;
+            p = strchr(q, ' ');
+        }
+        errno = 0;
+        argv[i] = q;
+        argv[i+1] = NULL;
+#if DEBUG
+        printf("[DEBUG] Spawning %s %s %s\n", argv[0], argv[1], argv[2]);
+#endif
+        fflush(stdout);
+        retval = posix_spawn(&target_pid, argv[0], NULL, &attr, argv, spawnedEnv);
+        if(retval)
+        {
+            fprintf(stderr, "[ERROR] Could not spawn debuggee: %s\n", strerror(retval));
+            exit(1);
+        }        
+        free(argv);
+    }
+    else 
+    {
+        fflush(stdout);
+        // execute with no arguments
+        char *argv[] = {lpApplicationName, NULL};
+#if DEBUG
+        printf("[DEBUG] Spawning %s...\n", lpApplicationName);
+#endif
+        retval = posix_spawnp(&target_pid, argv[0], NULL, &attr, argv, spawnedEnv);
+        if (retval) 
+        {
+            fprintf(stderr, "[ERROR] Could not spawn debuggee: %s\n", strerror(retval));
+            exit(1);
+        }
+    }
+    // parent
+    // initialize the mach port into the debugee
+    DebugActiveProcess(target_pid);
+    // suspend all threads
+    suspend_all_threads(target_pid);
+    // and now we can continue the process, threads are still suspended!
+    kill(target_pid, SIGCONT);
+    fflush(stdout);
+    lpProcessInformation->hProcess    = target_pid;
+    lpProcessInformation->dwProcessId = target_pid;
+	
 	return 1;
 }
 
 EXPORT
-HANDLE OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId){
+HANDLE OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId)
+{
 	return dwProcessId;
 }
 
 EXPORT
-HANDLE OpenThread(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwThreadId){
+HANDLE OpenThread(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwThreadId)
+{
 	return dwThreadId;
 }
 
 // WORKING
 EXPORT
-BOOL ReadProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead){
+BOOL ReadProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead)
+{
 
 	short sts = read_memory(hProcess, (mach_vm_address_t) lpBaseAddress, nSize, lpBuffer);
 	*lpNumberOfBytesRead = nSize;
@@ -478,7 +599,8 @@ BOOL ReadProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, 
 
 // WORKING
 EXPORT
-BOOL WriteProcessMemory(HANDLE hProcess, LPVOID lpBaseAddress, LPCVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten){
+BOOL WriteProcessMemory(HANDLE hProcess, LPVOID lpBaseAddress, LPCVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten)
+{
 
 	short sts = write_memory(hProcess, (mach_vm_address_t) lpBaseAddress, (mach_msg_type_number_t) nSize, (char *) lpBuffer);
 	*lpNumberOfBytesWritten = nSize;
@@ -486,18 +608,21 @@ BOOL WriteProcessMemory(HANDLE hProcess, LPVOID lpBaseAddress, LPCVOID lpBuffer,
 }
 
 EXPORT
-DWORD ResumeThread(HANDLE hThread){
+DWORD ResumeThread(HANDLE hThread)
+{
 	return resume_thread(hThread);
 }
 
 EXPORT
-DWORD SuspendThread(HANDLE hThread){
+DWORD SuspendThread(HANDLE hThread)
+{
 	return suspend_thread(hThread);
 } 
 
 // ignores allocationtype and protection
 EXPORT
-LPVOID VirtualAllocEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect){
+LPVOID VirtualAllocEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect)
+{
 
 	mach_vm_address_t addr = (mach_vm_address_t) lpAddress;
 	
@@ -506,7 +631,8 @@ LPVOID VirtualAllocEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD fl
 }
 
 EXPORT
-BOOL VirtualFreeEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType){
+BOOL VirtualFreeEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType)
+{
 
 	mach_vm_address_t addr = (mach_vm_address_t) lpAddress;
 	
@@ -516,13 +642,15 @@ BOOL VirtualFreeEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD dwFre
 
 // WORKING
 EXPORT
-SIZE_T VirtualQueryEx(HANDLE hProcess, LPCVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength){
+SIZE_T VirtualQueryEx(HANDLE hProcess, LPCVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, SIZE_T dwLength)
+{
 	unsigned int prot = 0;
 	mach_vm_size_t size = 0;
 
 	mach_vm_address_t addr = (mach_vm_address_t)lpAddress;
 
-	if(virtual_query(hProcess, &addr, &prot, &size)){
+	if(virtual_query(hProcess, &addr, &prot, &size))
+    {
 		return 0;
 	}
 
@@ -569,7 +697,8 @@ BOOL VirtualProtectEx(HANDLE hProcess, LPVOID lpAddress, SIZE_T dwSize, DWORD fl
 
 // FIXME - teb for 64bits ???
 EXPORT
-BOOL GetThreadSelectorEntry(HANDLE hThread, DWORD dwSelector, LPLDT_ENTRY lpSelectorEntry){
+BOOL GetThreadSelectorEntry(HANDLE hThread, DWORD dwSelector, LPLDT_ENTRY lpSelectorEntry)
+{
 //	fprintf(stderr, "GetThreadSelectorEntry %d %ld\n", hThread, dwSelector);
 /*
 ** Note: technically, some functions are called with threadid's instead of pids
@@ -610,14 +739,15 @@ BOOL GetThreadSelectorEntry(HANDLE hThread, DWORD dwSelector, LPLDT_ENTRY lpSele
 //////////////////////////////////////TODOs//////////////////////////
 
 EXPORT
-HMODULE LoadLibraryA(LPCTSTR lpFileName){
+HMODULE LoadLibraryA(LPCTSTR lpFileName)
+{
 	//printf("LoadLibraryA '%s' %d\n", lpFileName,(int)strlen(lpFileName));
 	void* library;
 	
 	if (strlen(lpFileName)==0)
 	{
 		//printf("Extracting symbols from all images\n");
-		library = dlopen(NULL, RTLD_DEFAULT);
+		library = dlopen(NULL, RTLD_LAZY);
 		//If dlsym() is called with the special handle RTLD_DEFAULT, then all mach-o images in the process
 		//(except those loaded with dlopen(xxx,RTLD_LOCAL)) are searched in the order they were loaded.
 		//This can be a costly search and should be avoided.
@@ -644,8 +774,10 @@ HMODULE LoadLibraryA(LPCTSTR lpFileName){
 }
 
 EXPORT
-BOOL FreeLibrary(HMODULE hModule){
-	if (dlclose(hModule) == 0)
+BOOL FreeLibrary(HMODULE hModule)
+{
+    // FIXME: dlopen returns void * not int
+	if (dlclose((void*)hModule) == 0)
 	{
 		return 0;
 	}
@@ -658,7 +790,8 @@ BOOL FreeLibrary(HMODULE hModule){
 }
 
 EXPORT
-FARPROC GetProcAddress(HMODULE hModule, LPCSTR lpProcName){
+FARPROC GetProcAddress(HMODULE hModule, LPCSTR lpProcName)
+{
 	// here we should use dlsym, which is the equivalent function in UNIX
 	//printf("Handle is 0x%08x and will search for %s\n", hModule, lpProcName);
 	FARPROC* initializer;
@@ -678,14 +811,15 @@ FARPROC GetProcAddress(HMODULE hModule, LPCSTR lpProcName){
 	 printf("    Base address: %p\n",      info.dli_fbase);
 	 printf("    Nearest symbol: %s\n",    info.dli_sname);
 	 printf("    Symbol address: %p\n",    info.dli_saddr);
-	 printf("    Original address: 0x%08x\n",  info.dli_saddr-info.dli_fbase);
+	 printf("    Original address: 0x%08x\n",  (unsigned int)(info.dli_saddr-info.dli_fbase));
 	 }
 	
 	return (FARPROC)initializer;
 }
 
 EXPORT
-DWORD GetImageCount() {
+DWORD GetImageCount() 
+{
 	uint32_t imagecount;
 	int i;
 	imagecount = _dyld_image_count();	
@@ -698,74 +832,88 @@ DWORD GetImageCount() {
 
 
 EXPORT
-BOOL FlushInstructionCache(HANDLE hProcess, LPCVOID lpBaseAddress, SIZE_T dwSize){
+BOOL FlushInstructionCache(HANDLE hProcess, LPCVOID lpBaseAddress, SIZE_T dwSize)
+{
 	return 0;
 }
 
 
 EXPORT
-BOOL Module32First(HANDLE hSnapshot, LPMODULEENTRY32 lpme){
+BOOL Module32First(HANDLE hSnapshot, LPMODULEENTRY32 lpme)
+{
 	return 0;
 }
 
 EXPORT
-BOOL Module32Next(HANDLE hSnapshot, LPMODULEENTRY32 lpme){
+BOOL Module32Next(HANDLE hSnapshot, LPMODULEENTRY32 lpme)
+{
 	return 0;
 }
 
 EXPORT
-HANDLE GetCurrentProcess(void){
+HANDLE GetCurrentProcess(void)
+{
 	return 0;
 }
 
 EXPORT
-DWORD GetLastError(void){
+DWORD GetLastError(void)
+{
 	return 0;
 }
 
 EXPORT
-DWORD FormatMessageA(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPTSTR lpBuffer, DWORD nSize, va_list* Arguments){
+DWORD FormatMessageA(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPTSTR lpBuffer, DWORD nSize, va_list* Arguments)
+{
 	//printf("Error!\n");
 	exit(1);
 }
 
 EXPORT
-HANDLE CreateFileMappingA(HANDLE hFile, LPSECURITY_ATTRIBUTES lpAttributes, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCTSTR lpName){
+HANDLE CreateFileMappingA(HANDLE hFile, LPSECURITY_ATTRIBUTES lpAttributes, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCTSTR lpName)
+{
 	return 0;
 }
 
 EXPORT
-LPVOID MapViewOfFile(HANDLE hFileMappingObject, DWORD dwDesiredAccess, DWORD dwFileOffsetHigh, DWORD dwFileOffsetLow, SIZE_T dwNumberOfBytesToMap){
+LPVOID MapViewOfFile(HANDLE hFileMappingObject, DWORD dwDesiredAccess, DWORD dwFileOffsetHigh, DWORD dwFileOffsetLow, SIZE_T dwNumberOfBytesToMap)
+{
 	return 0;
 }
 
 EXPORT
-DWORD GetMappedFileName(HANDLE hProcess, LPVOID lpv, LPTSTR lpFilename, DWORD nSize){
+DWORD GetMappedFileName(HANDLE hProcess, LPVOID lpv, LPTSTR lpFilename, DWORD nSize)
+{
 	return 0;
 }
 
 EXPORT
-BOOL UnmapViewOfFile(LPCVOID lpBaseAddress){
+BOOL UnmapViewOfFile(LPCVOID lpBaseAddress)
+{
 	return 0;
 }
 
 EXPORT
-BOOL OpenProcessToken(HANDLE ProcessHandle, DWORD DesiredAccess, PHANDLE TokenHandle){
+BOOL OpenProcessToken(HANDLE ProcessHandle, DWORD DesiredAccess, PHANDLE TokenHandle)
+{
 	return 1;
 }
 
 EXPORT
-BOOL LookupPrivilegeValueA(LPCTSTR lpSystemName, LPCTSTR lpName, PLUID lpLuid){
+BOOL LookupPrivilegeValueA(LPCTSTR lpSystemName, LPCTSTR lpName, PLUID lpLuid)
+{
 	return 1;
 }
 
 EXPORT
-BOOL AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState, DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, PDWORD ReturnLength){
+BOOL AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState, DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, PDWORD ReturnLength)
+{
 	return 1;
 }
 
 EXPORT
-BOOL NtSystemDebugControl(){
+BOOL NtSystemDebugControl()
+{
 	uuid_t id;
 	struct timespec wait;
 	wait.tv_sec = 0;

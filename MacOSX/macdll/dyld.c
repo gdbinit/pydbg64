@@ -1,19 +1,27 @@
 /*
- *  dyld.c
- *  ExceptionTest
+ *     _____               _____                                     
+ *  __|__   |__ __    _ __|__   |__  ______  ______   ____   __   _  
+ * |     |     |\ \  //|     \     ||      >|   ___| /   /_ |  | | | 
+ * |    _|     | \ \// |      \    ||     < |   |  ||   _  ||  |_| | 
+ * |___|     __| /__/  |______/  __||______>|______||______|'----__| 
+ *     |_____|             |_____|                                    
  *
- *  Created by Charlie Miller on 3/1/07.
- *  Copyright 2007 __MyCompanyName__. All rights reserved.
+ * PyDBG64 - OS X PyDbg with 64 bits support
+ * 
+ * Original OS X port by Charlie Miller
+ * Fixes and 64 bits support by fG!, reverser@put.as - http://reverse.put.as
+ *
+ * dyld.c
  *
  */
 
-#include <mach-o/ldsyms.h>
-#include "MacDll.h"
 #include "dyld.h"
-#include "implementation.h"
+//#include "MacDll.h"
+//#include "implementation.h"
 
 EXPORT 
-int macosx_locate_dyld(int pid, unsigned int *addr){
+int macosx_locate_dyld(int pid, unsigned int *addr)
+{
 	kern_return_t kret = KERN_SUCCESS;
 	struct vm_region_basic_info info;
 	mach_msg_type_number_t info_cnt = VM_REGION_BASIC_INFO_COUNT;
@@ -25,9 +33,9 @@ int macosx_locate_dyld(int pid, unsigned int *addr){
 
 	do {
 #if __LP64__
-			kret = vm_region_64 (port, (unsigned long *) &test_addr, (unsigned long *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &info_cnt, &object_name);
+			kret = vm_region_64(port, (unsigned long *) &test_addr, (unsigned long *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &info_cnt, &object_name);
 #else
-			kret = vm_region (port, (unsigned int *) &test_addr, (unsigned int *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &info_cnt, &object_name);
+			kret = vm_region(port, (unsigned int *) &test_addr, (unsigned int *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) &info, &info_cnt, &object_name);
 #endif
 
 			if (kret != KERN_SUCCESS)

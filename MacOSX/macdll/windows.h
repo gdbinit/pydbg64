@@ -1,3 +1,37 @@
+/*
+ *     _____               _____                                     
+ *  __|__   |__ __    _ __|__   |__  ______  ______   ____   __   _  
+ * |     |     |\ \  //|     \     ||      >|   ___| /   /_ |  | | | 
+ * |    _|     | \ \// |      \    ||     < |   |  ||   _  ||  |_| | 
+ * |___|     __| /__/  |______/  __||______>|______||______|'----__| 
+ *     |_____|             |_____|                                    
+ *
+ * PyDBG64 - OS X PyDbg with 64 bits support
+ * 
+ * Original OS X port by Charlie Miller
+ * Fixes and 64 bits support by fG!, reverser@put.as - http://reverse.put.as
+ *
+ * windows.h
+ *
+ */
+#define MEM_COMMIT                     0x00001000
+#define MEM_DECOMMIT                   0x00004000
+#define MEM_IMAGE                      0x01000000
+#define MEM_RELEASE                    0x00008000
+
+#define PAGE_NOACCESS                  0x00000001
+#define PAGE_READONLY                  0x00000002
+#define PAGE_READWRITE                 0x00000004
+#define PAGE_WRITECOPY                 0x00000008
+#define PAGE_EXECUTE                   0x00000010
+#define PAGE_EXECUTE_READ              0x00000020
+#define PAGE_EXECUTE_READWRITE         0x00000040
+#define PAGE_EXECUTE_WRITECOPY         0x00000080
+#define PAGE_GUARD                     0x00000100
+#define PAGE_NOCACHE                   0x00000200
+#define PAGE_WRITECOMBINE              0x00000400
+
+
 #define BOOL short
 #define WORD short
 #define DWORD long
@@ -41,22 +75,22 @@
 
 
 typedef struct _SYSTEM_INFO {
-	  union {
-		      DWORD dwOemId;
-		          struct {
-				        WORD wProcessorArchitecture;
-					      WORD wReserved;
-					          };
-			    };
-	    DWORD dwPageSize;
-	      LPVOID lpMinimumApplicationAddress;
-	        LPVOID lpMaximumApplicationAddress;
-		  DWORD_PTR dwActiveProcessorMask;
-		    DWORD dwNumberOfProcessors;
-		      DWORD dwProcessorType;
-		        DWORD dwAllocationGranularity;
-			  WORD wProcessorLevel;
-			    WORD wProcessorRevision;
+    union {
+        DWORD dwOemId;
+        struct {
+            WORD wProcessorArchitecture;
+            WORD wReserved;
+        };
+    };
+    DWORD dwPageSize;
+    LPVOID lpMinimumApplicationAddress;
+    LPVOID lpMaximumApplicationAddress;
+    DWORD_PTR dwActiveProcessorMask;
+    DWORD dwNumberOfProcessors;
+    DWORD dwProcessorType;
+    DWORD dwAllocationGranularity;
+    WORD wProcessorLevel;
+    WORD wProcessorRevision;
 } SYSTEM_INFO;
 
 typedef struct _EXCEPTION_RECORD {

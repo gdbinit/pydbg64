@@ -1,29 +1,45 @@
 /*
- *  MacDll.h
- *  ExceptionTest
+ *     _____               _____                                     
+ *  __|__   |__ __    _ __|__   |__  ______  ______   ____   __   _  
+ * |     |     |\ \  //|     \     ||      >|   ___| /   /_ |  | | | 
+ * |    _|     | \ \// |      \    ||     < |   |  ||   _  ||  |_| | 
+ * |___|     __| /__/  |______/  __||______>|______||______|'----__| 
+ *     |_____|             |_____|                                    
  *
- *  Created by Charlie Miller on 12/26/06.
- *  Copyright 2006. All rights reserved.
+ * PyDBG64 - OS X PyDbg with 64 bits support
+ * 
+ * Original OS X port by Charlie Miller
+ * Fixes and 64 bits support by fG!, reverser@put.as - http://reverse.put.as
+ *
+ * macdll.h
  *
  */
 
-#include <mach/mach.h>
-#include "windows.h"
-#include "implementation.h"
-#include "Exception.h"
+#include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h> 
+#include <dlfcn.h>
+#include <stdint.h>
 #include <mach/mach_traps.h>
 #include <mach/mach_types.h>
-#include <string.h>
 #include <mach/thread_status.h>
-#include <unistd.h> 
 #include <mach/mach.h>
-#include <sys/types.h>
-#include <sys/sysctl.h>
-#include <dlfcn.h>
 #include <mach-o/dyld.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/ptrace.h>
+#include <sys/sysctl.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <sys/syslimits.h>
+
+#include "windows.h"
+
+#define	_POSIX_SPAWN_DISABLE_ASLR	0x00000100
+#define TARGET_IS_64BITS            0x00001000
 
 // All prototypes compliments of MSDN
 
@@ -81,3 +97,22 @@ BOOL LookupPrivilegeValueA(LPCTSTR lpSystemName, LPCTSTR lpName, PLUID lpLuid);
 BOOL AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState, DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, PDWORD ReturnLength);
 
 void test(int pid);
+
+extern int attach(pid_t pid, mach_port_t *ep);
+extern int detach(pid_t pid, mach_port_t *ep);
+extern int my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *except_code, unsigned long *eat, unsigned long *eref);
+extern void get_task_threads(int pid, thread_act_port_array_t *thread_list, mach_msg_type_number_t *thread_count);
+extern int suspend_thread(unsigned int thread);
+extern int suspend_all_threads(pid_t target_pid);
+extern int resume_thread(unsigned int thread);
+#if __LP64__
+extern int get_context(thread_act_t thread, x86_thread_state64_t *state);
+#else
+extern int get_context(thread_act_t thread, i386_thread_state_t *state);
+#endif
+extern int virtual_query(int pid, mach_vm_address_t *baseaddr, unsigned int *prot, mach_vm_size_t *size);
+extern int virtual_protect(int pid, mach_vm_address_t address, mach_vm_size_t size, vm_prot_t type);
+extern int write_memory(int pid, mach_vm_address_t addr, mach_msg_type_number_t len, char *data);
+extern int read_memory(int pid, mach_vm_address_t addr, mach_vm_size_t len, char *data);
+extern int virtual_free(int pid, mach_vm_address_t address, mach_vm_size_t size);
+extern char *allocate(int pid, mach_vm_address_t address,  mach_vm_size_t size);

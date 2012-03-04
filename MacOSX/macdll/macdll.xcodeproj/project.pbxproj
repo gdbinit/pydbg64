@@ -3,20 +3,22 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 42;
+	objectVersion = 46;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		DA19137F0B97134C00C16A5C /* dyld.h in Headers */ = {isa = PBXBuildFile; fileRef = DA19137B0B97134C00C16A5C /* dyld.h */; };
 		DA1913800B97134C00C16A5C /* dyld.c in Sources */ = {isa = PBXBuildFile; fileRef = DA19137C0B97134C00C16A5C /* dyld.c */; };
 		DA6585710B437DC2008448DE /* Exception.c in Sources */ = {isa = PBXBuildFile; fileRef = 08FB7796FE84155DC02AAC07 /* Exception.c */; };
-		DA6585720B437DC2008448DE /* MachExceptions.defs in Sources */ = {isa = PBXBuildFile; fileRef = E4C382F60B31939500E008ED /* MachExceptions.defs */; settings = {ATTRIBUTES = (Server, ); }; };
 		DA6585730B437DC2008448DE /* implementation.c in Sources */ = {isa = PBXBuildFile; fileRef = DAD8819E0B3359A000EDC62E /* implementation.c */; };
 		DA6585750B437DC2008448DE /* MacDll.c in Sources */ = {isa = PBXBuildFile; fileRef = DACCC6C50B41B91800AD8E96 /* MacDll.c */; };
 		DA6585760B437DE5008448DE /* implementation.h in Headers */ = {isa = PBXBuildFile; fileRef = DAD881A80B335A3F00EDC62E /* implementation.h */; };
 		DA6585770B437DE5008448DE /* Exception.h in Headers */ = {isa = PBXBuildFile; fileRef = DAD881C10B335EB100EDC62E /* Exception.h */; };
 		DA6585780B437DE5008448DE /* windows.h in Headers */ = {isa = PBXBuildFile; fileRef = DACCC6C60B41B91800AD8E96 /* windows.h */; };
 		DA6585790B437DE5008448DE /* MacDll.h in Headers */ = {isa = PBXBuildFile; fileRef = DACCC6D70B41BA0900AD8E96 /* MacDll.h */; };
+		DE00773C14FAE5A8007F491A /* mach_exc.h in Headers */ = {isa = PBXBuildFile; fileRef = DE00773914FAE5A8007F491A /* mach_exc.h */; };
+		DE00773D14FAE5A8007F491A /* mach_excServer.c in Sources */ = {isa = PBXBuildFile; fileRef = DE00773A14FAE5A8007F491A /* mach_excServer.c */; };
+		DE00773E14FAE5A8007F491A /* mach_excUser.c in Sources */ = {isa = PBXBuildFile; fileRef = DE00773B14FAE5A8007F491A /* mach_excUser.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,7 +32,9 @@
 		DAD8819E0B3359A000EDC62E /* implementation.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = implementation.c; sourceTree = "<group>"; };
 		DAD881A80B335A3F00EDC62E /* implementation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = implementation.h; sourceTree = "<group>"; };
 		DAD881C10B335EB100EDC62E /* Exception.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Exception.h; sourceTree = "<group>"; };
-		E4C382F60B31939500E008ED /* MachExceptions.defs */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.mig; path = MachExceptions.defs; sourceTree = "<group>"; };
+		DE00773914FAE5A8007F491A /* mach_exc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mach_exc.h; sourceTree = "<group>"; };
+		DE00773A14FAE5A8007F491A /* mach_excServer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mach_excServer.c; sourceTree = "<group>"; };
+		DE00773B14FAE5A8007F491A /* mach_excUser.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mach_excUser.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,16 +51,18 @@
 		08FB7794FE84155DC02AAC07 /* ExceptionTest */ = {
 			isa = PBXGroup;
 			children = (
-				DACCC6D70B41BA0900AD8E96 /* MacDll.h */,
-				DACCC6C50B41B91800AD8E96 /* MacDll.c */,
-				DACCC6C60B41B91800AD8E96 /* windows.h */,
-				DAD881A80B335A3F00EDC62E /* implementation.h */,
-				08FB7796FE84155DC02AAC07 /* Exception.c */,
-				DA19137B0B97134C00C16A5C /* dyld.h */,
 				DA19137C0B97134C00C16A5C /* dyld.c */,
-				DAD8819E0B3359A000EDC62E /* implementation.c */,
-				E4C382F60B31939500E008ED /* MachExceptions.defs */,
+				DA19137B0B97134C00C16A5C /* dyld.h */,
+				08FB7796FE84155DC02AAC07 /* Exception.c */,
 				DAD881C10B335EB100EDC62E /* Exception.h */,
+				DAD8819E0B3359A000EDC62E /* implementation.c */,
+				DAD881A80B335A3F00EDC62E /* implementation.h */,
+				DACCC6C50B41B91800AD8E96 /* MacDll.c */,
+				DACCC6D70B41BA0900AD8E96 /* MacDll.h */,
+				DE00773914FAE5A8007F491A /* mach_exc.h */,
+				DE00773A14FAE5A8007F491A /* mach_excServer.c */,
+				DE00773B14FAE5A8007F491A /* mach_excUser.c */,
+				DACCC6C60B41B91800AD8E96 /* windows.h */,
 				E44371B809B87B6F009066D0 /* Products */,
 			);
 			name = ExceptionTest;
@@ -82,6 +88,7 @@
 				DA6585780B437DE5008448DE /* windows.h in Headers */,
 				DA6585790B437DE5008448DE /* MacDll.h in Headers */,
 				DA19137F0B97134C00C16A5C /* dyld.h in Headers */,
+				DE00773C14FAE5A8007F491A /* mach_exc.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -110,9 +117,16 @@
 /* Begin PBXProject section */
 		08FB7793FE84155DC02AAC07 /* Project object */ = {
 			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0420;
+			};
 			buildConfigurationList = 1DEB928908733DD80010E9CD /* Build configuration list for PBXProject "macdll" */;
-			compatibilityVersion = "Xcode 2.4";
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
 			hasScannedForEncodings = 1;
+			knownRegions = (
+				en,
+			);
 			mainGroup = 08FB7794FE84155DC02AAC07 /* ExceptionTest */;
 			productRefGroup = 08FB7794FE84155DC02AAC07 /* ExceptionTest */;
 			projectDirPath = "";
@@ -130,9 +144,10 @@
 			files = (
 				DA1913800B97134C00C16A5C /* dyld.c in Sources */,
 				DA6585710B437DC2008448DE /* Exception.c in Sources */,
-				DA6585720B437DC2008448DE /* MachExceptions.defs in Sources */,
 				DA6585730B437DC2008448DE /* implementation.c in Sources */,
 				DA6585750B437DC2008448DE /* MacDll.c in Sources */,
+				DE00773D14FAE5A8007F491A /* mach_excServer.c in Sources */,
+				DE00773E14FAE5A8007F491A /* mach_excUser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,11 +159,11 @@
 			buildSettings = {
 				DEPLOYMENT_POSTPROCESSING = NO;
 				GCC_DYNAMIC_NO_PIC = YES;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = "";
 				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_LABEL = YES;
@@ -161,7 +176,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.4;
 				OTHER_LDFLAGS = "-Wl,-read_only_relocs,suppress";
-				PREBINDING = NO;
 				SDKROOT = "";
 				WARNING_CFLAGS = "-Wall";
 			};
@@ -172,10 +186,10 @@
 			buildSettings = {
 				DEPLOYMENT_POSTPROCESSING = YES;
 				GCC_DYNAMIC_NO_PIC = YES;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = s;
 				GCC_PREPROCESSOR_DEFINITIONS = NDEBUG;
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_LABEL = YES;
@@ -188,7 +202,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.4;
 				OTHER_LDFLAGS = "-Wl,-read_only_relocs,suppress";
-				PREBINDING = NO;
 				SDKROOT = "";
 				WARNING_CFLAGS = "-Wall";
 			};
@@ -197,16 +210,19 @@
 		DA65857D0B437E0A008448DE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COPY_PHASE_STRIP = NO;
 				EXECUTABLE_PREFIX = lib;
 				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_WARN_UNUSED_PARAMETER = NO;
 				INSTALL_PATH = /usr/local/lib;
-				PREBINDING = NO;
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = "-Wl";
 				PRODUCT_NAME = macdll;
+				SDKROOT = macosx;
 				ZERO_LINK = YES;
 			};
 			name = Debug;
@@ -214,14 +230,17 @@
 		DA65857E0B437E0A008448DE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COPY_PHASE_STRIP = YES;
 				EXECUTABLE_PREFIX = lib;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
 				GCC_MODEL_TUNING = G5;
+				GCC_WARN_UNUSED_PARAMETER = NO;
 				INSTALL_PATH = /usr/local/lib;
-				PREBINDING = NO;
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = "-Wl";
 				PRODUCT_NAME = macdll;
+				SDKROOT = macosx;
 				ZERO_LINK = NO;
 			};
 			name = Release;

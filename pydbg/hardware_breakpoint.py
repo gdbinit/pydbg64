@@ -34,9 +34,11 @@ class hardware_breakpoint:
     restore     = None
     slot        = None
     handler     = None
+    thread_id   = None
 
     ####################################################################################################################
-    def __init__ (self, address=None, length=0, condition="", description="", restore=True, slot=None, handler=None):
+    # FG!
+    def __init__ (self, address=None, length=0, condition="", description="", restore=True, slot=None, handler=None, thread_id=0):
         '''
 
         @type  address:     DWORD
@@ -53,6 +55,8 @@ class hardware_breakpoint:
         @param slot:        (Optional, Def=None) Debug register slot this hardware breakpoint sits in.
         @type  handler:     Function Pointer
         @param handler:     (Optional, def=None) Optional handler to call for this bp instead of the default handler
+        @type  thread_id:   Integer
+        @param thread_id:   (Optional) ID of thread to get context of
         '''
 
         self.address     = address
@@ -62,3 +66,4 @@ class hardware_breakpoint:
         self.restore     = restore
         self.slot        = slot
         self.handler     = handler
+        self.thread_id   = thread_id

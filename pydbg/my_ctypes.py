@@ -71,7 +71,11 @@ def _reduce (self):
 
 
 ########################################################################################################################
-c_types = (Structure, c_char, c_byte, c_ubyte, c_short, c_ushort, c_int, c_uint, c_long, c_ulong, c_longlong, \
+#c_types = (Structure, c_char, c_byte, c_ubyte, c_short, c_ushort, c_int, c_uint, c_long, c_ulong, c_longlong, \
+class Structure2(Structure):
+   pass
+
+c_types = (Structure2, c_char, c_byte, c_ubyte, c_short, c_ushort, c_int, c_uint, c_long, c_ulong, c_longlong, \
            c_ulonglong, c_float, c_double, c_char_p, c_wchar_p, c_void_p)
 
 

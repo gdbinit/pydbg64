@@ -1,11 +1,33 @@
 /*
- *  implementation.h
- *  ExceptionTest
+ *     _____               _____                                     
+ *  __|__   |__ __    _ __|__   |__  ______  ______   ____   __   _  
+ * |     |     |\ \  //|     \     ||      >|   ___| /   /_ |  | | | 
+ * |    _|     | \ \// |      \    ||     < |   |  ||   _  ||  |_| | 
+ * |___|     __| /__/  |______/  __||______>|______||______|'----__| 
+ *     |_____|             |_____|                                    
  *
- *  Created by Charlie Miller on 12/15/06.
- *  Copyright 2006 __MyCompanyName__. All rights reserved.
- * test.
+ * PyDBG64 - OS X PyDbg with 64 bits support
+ * 
+ * Original OS X port by Charlie Miller
+ * Fixes and 64 bits support by fG!, reverser@put.as - http://reverse.put.as
+ *
+ * implementation.h
+ *
  */
+
+#include <stdlib.h>
+#include <sys/types.h>
+#include <stdio.h>
+#include <mach/mach.h>
+#include <mach/mach_traps.h>
+#include <mach/mach_types.h>
+#include <mach/mach_vm.h>
+#include <string.h>
+#include <mach/thread_status.h>
+#include <unistd.h>
+#include <signal.h>
+#include <setjmp.h>
+#include <sys/ptrace.h>
 
 #define MEM_COMMIT                     0x00001000
 #define MEM_DECOMMIT                   0x00004000
@@ -24,10 +46,9 @@
 #define PAGE_NOCACHE                   0x00000200
 #define PAGE_WRITECOMBINE              0x00000400
 
-int attach(int pid, mach_port_t *ep);
-int detach(int pid, mach_port_t *ep);
+int attach(pid_t pid, mach_port_t *ep);
+int detach(pid_t pid, mach_port_t *ep);
 void get_task_threads(int pid, thread_act_port_array_t *thread_list, mach_msg_type_number_t *thread_count);
-
 
 int virtual_query(int pid, mach_vm_address_t *baseaddr, unsigned int *prot, mach_vm_size_t *size);
 int virtual_protect(int pid, mach_vm_address_t address, mach_vm_size_t size, vm_prot_t type);
@@ -36,16 +57,15 @@ int read_memory(int pid, mach_vm_address_t addr, mach_vm_size_t len, char *data)
 char *allocate(int pid, mach_vm_address_t address,  mach_vm_size_t size);
 int virtual_free(int pid, mach_vm_address_t address, mach_vm_size_t size);
 
-#if __LP64__
-int get_context(thread_act_t thread, x86_thread_state64_t *state);
-#else
-int get_context(thread_act_t thread, i386_thread_state_t *state);
-#endif
+int get_context(thread_act_t thread, thread_state_t *state);
 
-
+int suspend_all_threads(pid_t target_pid);
 int suspend_thread(unsigned int thread);
 int resume_thread(unsigned int thread);
 int set_context(thread_act_t thread, i386_thread_state_t *state);
 
 int allocate_in_thread(int threadId, int size);
-task_t getport(int pid);
+task_t getport(pid_t pid);
+
+extern mach_port_t install_debug_port(pid_t pid);
+
