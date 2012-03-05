@@ -55,6 +55,9 @@ attach(pid_t pid, mach_port_t *exceptionport)
     getport(pid);   // make sure port gets set
     
     *exceptionport = install_debug_port(pid);
+    // failure
+    if (*exceptionport == 0) return 0;
+    // success
     return 1;
 }
 
@@ -217,13 +220,7 @@ read_memory(int pid, mach_vm_address_t addr, mach_vm_size_t len, char *data)
     mach_vm_size_t nread ;
     vm_map_t port = getport(pid);
 	
-    /*		mach_msg_type_number_t local_size = vm_page_size;
-     vm_offset_t localaddress;
-     vm_read(port, (mach_vm_address_t) addr, (mach_vm_size_t) len, &localaddress, &local_size);
-     printf("Address:%lx Data:%x\n", addr, *(unsigned char*)localaddress);
-     */	
     mach_vm_read_overwrite(port, addr, len, (mach_vm_address_t)data, &nread);
-    //        vm_read(port, (mach_vm_address_t) addr, (mach_vm_size_t) len, (vm_offset_t *) data, &nread);
     if(nread != len){
         //fprintf(stderr, "Error reading memory, requested %d bytes, read %d\n", len, nread);
         //                return 0;  // bad
@@ -311,11 +308,9 @@ suspend_all_threads(pid_t target_pid)
 
     if (thread_count > 0)
     {
-//        printf("[DEBUG] Found %d threads\n", thread_count);
         i = thread_count;
         while (i--)
         {
-//            printf("[%d] %d\n", i, thread_list[i]);
             suspend_thread(thread_list[i]);
         }
     }

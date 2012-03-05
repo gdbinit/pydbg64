@@ -16,6 +16,9 @@ This is an updated version of PyDbg for OS X that supports 64 bits targets.
 It still does not support all features available in the Windows version but it can already be
 used for scripted debugging of 32 and 64bits OS X targets.
 
+One special feature that I have added is the possibility to install hardware breakpoints per thread
+and have breakpoint handlers for each thread.
+
 It supports the libdasm disassembler library and also distorm3. I have uploaded the libdasm version
 that I use into the github repo with a small fix to multi-byte nops.
 
@@ -30,6 +33,8 @@ flag so kernel needs to be patched. I need to verify in what state I left this, 
 Many thanks go to the company that indirectly sponsored this update :-) !
 
 Tested with Python 2.6.x and 2.7.x.
+You need to use the python version correspondent to your target, python-32 for 32bits, and 
+python-64 for 64bits. Macdll by default compiles to a fat binary :-)
 
 From the old instructions, what you need is the pydasm install and python procmod permissions.
 You also need to compile the macdll and copy it to pydbg folder.

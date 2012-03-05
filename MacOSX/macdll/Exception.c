@@ -111,7 +111,6 @@ extern kern_return_t catch_mach_exception_raise(
 		
 #if __LP64__
 		// determine if single step
-//		printf("RFLAGS: %lx %x\n", state.__rflags, code[0]);
 		if(state.__rflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
 		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
 			exception_code = EXCEPTION_SINGLE_STEP;
@@ -127,7 +126,6 @@ extern kern_return_t catch_mach_exception_raise(
 
 #else
 		// determine if single step
-//		printf("EFLAGS: %x %x\n", state.eflags, code[0]);
 		if(state.eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
 		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
 			exception_code = EXCEPTION_SINGLE_STEP;
@@ -141,7 +139,6 @@ extern kern_return_t catch_mach_exception_raise(
         thread_get_state(thread, flavor, (thread_state_t)&exc_state, &count);
 		exception_ref = exc_state.faultvaddr;
 #endif
-		//fprintf(stderr, "Hit breakpoint at %x\n", exception_at);
         result = KERN_SUCCESS;
     }
     // FAULTS

@@ -118,6 +118,10 @@ BOOL StartProcess(DWORD dwProcessId)
 
 }
 
+/*
+ * success != 0
+ * failure = 0
+ */
 EXPORT
 BOOL DebugActiveProcess(DWORD dwProcessId)
 {
@@ -456,6 +460,9 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	return 1;
 }
 
+/*
+ * non-zero return is success
+ */
 EXPORT
 BOOL CreateProcessA(LPCTSTR lpApplicationName, 
                     LPTSTR lpCommandLine, 
@@ -563,7 +570,14 @@ BOOL CreateProcessA(LPCTSTR lpApplicationName,
     }
     // parent
     // initialize the mach port into the debugee
-    DebugActiveProcess(target_pid);
+    retval = DebugActiveProcess(target_pid);
+    // failed to attach
+    if (retval == 0)
+    {
+        kill(target_pid, SIGCONT); // leave no zombies behind!
+        kill(target_pid, SIGKILL);
+        return 0;
+    }
     // suspend all threads
     suspend_all_threads(target_pid);
     // and now we can continue the process, threads are still suspended!

@@ -150,8 +150,8 @@ class pydbg:
         self.op3                      = None      # pydasm decoded 3rd operand, propagated by self.disasm()
 
         # control debug/error logging.
-        self._info = lambda msg: sys.stderr.write("[INFO-pydbg] " + msg + "\n")
-        self._log = lambda msg: sys.stderr.write("[!LOG-pydbg] " + msg + "\n")
+        self._info = lambda msg: None #sys.stderr.write("[INFO-pydbg] " + msg + "\n")
+        self._log = lambda msg: None # sys.stderr.write("[!LOG-pydbg] " + msg + "\n")
         self._warning = lambda msg: None #sys.stderr.write("[!WARNING-pydbg] " + msg + "\n")
         self._err = lambda msg: sys.stderr.write("[ERROR-pydbg] " + msg + "\n")
 
@@ -2614,7 +2614,7 @@ class pydbg:
 
             # macos compatability.
             # need to clear TRAP flag for MacOS. this doesn't hurt Windows aside from a negligible speed hit.
-            print "Clearing TRAP Flag"
+            #print "Clearing TRAP Flag"
             context = self.get_thread_context(self.h_thread)
             # FIXME 64bits
             if self.is64bits:
