@@ -21,13 +21,17 @@
 #include <mach/mach.h>
 #include <mach/mach_traps.h>
 #include <mach/mach_types.h>
+
+#if !defined (__arm__)
 #include <mach/mach_vm.h>
+#include <sys/ptrace.h>
+#endif
+
 #include <string.h>
 #include <mach/thread_status.h>
 #include <unistd.h>
 #include <signal.h>
 #include <setjmp.h>
-#include <sys/ptrace.h>
 
 #define MEM_COMMIT                     0x00001000
 #define MEM_DECOMMIT                   0x00004000
@@ -46,8 +50,8 @@
 #define PAGE_NOCACHE                   0x00000200
 #define PAGE_WRITECOMBINE              0x00000400
 
-int attach(pid_t pid, mach_port_t *ep);
-int detach(pid_t pid, mach_port_t *ep);
+int attach(pid_t pid, mach_port_t *exceptionport);
+int detach(pid_t pid, mach_port_t *exceptionport);
 void get_task_threads(int pid, thread_act_port_array_t *thread_list, mach_msg_type_number_t *thread_count);
 
 int virtual_query(int pid, mach_vm_address_t *baseaddr, unsigned int *prot, mach_vm_size_t *size);
@@ -62,7 +66,7 @@ int get_context(thread_act_t thread, thread_state_t *state);
 int suspend_all_threads(pid_t target_pid);
 int suspend_thread(unsigned int thread);
 int resume_thread(unsigned int thread);
-int set_context(thread_act_t thread, i386_thread_state_t *state);
+//int set_context(thread_act_t thread, i386_thread_state_t *state);
 
 int allocate_in_thread(int threadId, int size);
 task_t getport(pid_t pid);

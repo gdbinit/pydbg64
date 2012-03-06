@@ -219,6 +219,19 @@ typedef struct _CONTEXT {
 	DWORD	R13;
 	DWORD	R14;
 	DWORD	R15;
+    // remaining arm
+    DWORD   R0;
+    DWORD   R1;
+    DWORD   R2;
+    DWORD   R3;
+    DWORD   R4;
+    DWORD   R5;
+    DWORD   R6;
+    DWORD   R7;
+    DWORD   SP;
+    DWORD   LR;
+    DWORD   PC;
+    DWORD   CPSR;
     BYTE    ExtendedRegisters[MAXIMUM_SUPPORTED_EXTENSION];
 } CONTEXT;
 

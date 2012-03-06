@@ -26,7 +26,7 @@ int my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *ex
 
 void call_msg_server(mach_port_t exceptionPort);
 mach_port_t install_debug_port(pid_t pid);
-int XToWinException(int ec);
+
 extern int suspend_thread(unsigned int thread);
 extern kern_return_t catch_mach_exception_raise(mach_port_t             exception_port,
                                                 mach_port_t             thread,

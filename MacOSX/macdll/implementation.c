@@ -62,12 +62,12 @@ attach(pid_t pid, mach_port_t *exceptionport)
 }
 
 int
-detach(pid_t pid, mach_port_t *exception_port)
+detach(pid_t pid, mach_port_t *exceptionport)
 {
 	//fprintf(stderr, "detatch %x\n", pid);
     mach_port_t me = mach_task_self();
 
-	kern_return_t err = mach_port_deallocate(me, *exception_port);
+	kern_return_t err = mach_port_deallocate(me, *exceptionport);
 	if(err!= KERN_SUCCESS)
     {
 		//printf("Failed to deallocate port!\n");
@@ -101,8 +101,12 @@ virtual_free(int pid, mach_vm_address_t address, mach_vm_size_t size)
     int sts;
     vm_map_t port = getport(pid);
 	//fprintf(stderr, "virtual_free %x %x %x\n", pid, address, size);
+#if defined (__arm__)
+    kern_return_t err = vm_deallocate(port, address, size);
+#else
     kern_return_t err = mach_vm_deallocate(port, address, size);
-	
+#endif
+    
     if(err!= KERN_SUCCESS){
         sts = 0;
     } else {
@@ -178,8 +182,12 @@ virtual_protect(int pid, mach_vm_address_t address, mach_vm_size_t size, vm_prot
     // convert from Windows to OS X protection
     vm_prot_t mac_prot = winToXProtection(type);
         
+#if defined (__arm__)
+    kern_return_t err = vm_protect(port, address, size, FALSE, mac_prot);
+#else
     kern_return_t err = mach_vm_protect(port, address, size, FALSE, mac_prot);
-	
+#endif
+    
     if(err == KERN_SUCCESS){
         sts = 1;
     } else if(err == KERN_PROTECTION_FAILURE){
@@ -202,7 +210,11 @@ allocate(int pid, mach_vm_address_t address, mach_vm_size_t size)
 	//fprintf(stderr, "allocate %d %d %d\n", pid, address, size);
     vm_map_t port = getport(pid);
     
+#if defined (__arm__)
+    kern_return_t err = vm_allocate(port, (vm_address_t*) &data, size, VM_FLAGS_ANYWHERE);
+#else
     kern_return_t err = mach_vm_allocate(port, (mach_vm_address_t*) &data, size, VM_FLAGS_ANYWHERE);
+#endif
     
     if(err!= KERN_SUCCESS)
     {
@@ -217,10 +229,16 @@ int
 read_memory(int pid, mach_vm_address_t addr, mach_vm_size_t len, char *data)
 {
     //		fprintf(stderr, "!read_memory %d %p %x\n", pid, (void *)addr, len);
-    mach_vm_size_t nread ;
+    
     vm_map_t port = getport(pid);
 	
+#if defined (__arm__)
+    vm_size_t nread;
+    vm_read_overwrite(port, addr, len, (vm_address_t)data, &nread);
+#else
+    mach_vm_size_t nread;
     mach_vm_read_overwrite(port, addr, len, (mach_vm_address_t)data, &nread);
+#endif
     if(nread != len){
         //fprintf(stderr, "Error reading memory, requested %d bytes, read %d\n", len, nread);
         //                return 0;  // bad
@@ -237,7 +255,12 @@ write_memory(int pid, mach_vm_address_t addr, mach_msg_type_number_t len, char *
     //		fprintf(stderr, "write_memory %d %p %x\n", pid, (void *)addr, len);
     vm_map_t port = getport(pid);
     
+#if defined (__arm__)
+    kern_return_t ret = vm_write(port, addr, (vm_offset_t) data, len);
+#else
     kern_return_t ret = mach_vm_write(port, addr, (vm_offset_t) data, len);
+#endif
+    
     if(ret != KERN_SUCCESS)
     {
         //fprintf(stderr, "Failed to write to %lx", addr);
@@ -255,14 +278,17 @@ write_memory(int pid, mach_vm_address_t addr, mach_msg_type_number_t len, char *
 int
 get_context(thread_act_t thread, thread_state_t *state)
 {
-	//fprintf(stderr, "get_context %x: %x\n", thread, state->eip);
-#if __LP64__
+#if defined(__arm__)
+    mach_msg_type_number_t sc = ARM_THREAD_STATE_COUNT;
+    thread_get_state(thread, ARM_THREAD_STATE, (thread_state_t)state, &sc);    
+#elif defined (__x86_64__)
     mach_msg_type_number_t sc = x86_THREAD_STATE64_COUNT;
     thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)state, &sc);
-#else
+#elif defined (__i386__)
     mach_msg_type_number_t sc = i386_THREAD_STATE_COUNT;
     thread_get_state(thread, i386_THREAD_STATE, (thread_state_t)state, &sc);
 #endif    
+
     return 0;
 }
 
@@ -361,7 +387,12 @@ virtual_query(int pid, mach_vm_address_t *baseaddr, unsigned int *prot, mach_vm_
     mach_port_t objectName = MACH_PORT_NULL;
     mach_vm_address_t requested_base = *baseaddr;
     
+    // FIXMEARM - VM_REGION ????
+#if defined (__arm__)
+    kern_return_t result = vm_region(port, (vm_address_t*)baseaddr, (vm_size_t*)size, VM_REGION_BASIC_INFO_64, (vm_region_info_t) &info, &count, &objectName);
+#else
     kern_return_t result = mach_vm_region(port, baseaddr, size, VM_REGION_BASIC_INFO_64, (vm_region_info_t) &info, &count, &objectName);
+#endif
 	
     // what can go wrong?  
     // No allocated pages at or after the requested addy

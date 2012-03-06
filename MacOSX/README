@@ -16,7 +16,7 @@ This is an updated version of PyDbg for OS X that supports 64 bits targets.
 It still does not support all features available in the Windows version but it can already be
 used for scripted debugging of 32 and 64bits OS X targets.
 
-One special feature that I have added is the possibility to install hardware breakpoints per thread
+One special feature that I added is the possibility to install hardware breakpoints per thread
 and have breakpoint handlers for each thread.
 
 It supports the libdasm disassembler library and also distorm3. I have uploaded the libdasm version

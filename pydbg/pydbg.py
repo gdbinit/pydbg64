@@ -1896,7 +1896,7 @@ class pydbg:
             context = self.context
 
         context_list = self.dump_context_list(context, stack_depth, print_dots)
-        
+
         if self.is64bits:
             context_dump  = "CONTEXT DUMP\n"
             context_dump += "  RIP: %016lx %s\n" % (context.Rip, context_list["rip"])
@@ -2044,19 +2044,14 @@ class pydbg:
 
     ####################################################################################################################
     #FG!
-    def dump_context_mine (self, context=None, stack_depth=5, print_dots=True):
+    def dump_registers (self, context=None):
         '''
-        Return an informational block of text describing the CPU context of the current thread. Information includes:
-            - Disassembly at current EIP
-            - Register values in hex, decimal and "smart" dereferenced
-            - ESP, ESP+4, ESP+8 ... values in hex, decimal and "smart" dereferenced
+        Return an informational block of text describing the CPU registers of the current thread.
 
         @see: dump_context_list()
 
         @type  context:     Context
         @param context:     (Optional) Current thread context to examine
-        @type  stack_depth: Integer
-        @param stack_depth: (Optional, def:5) Number of dwords to dereference off of the stack (not including ESP)
         @type  print_dots:  Bool
         @param print_dots:  (Optional, def:True) Controls suppression of dot in place of non-printable
 
@@ -2067,23 +2062,71 @@ class pydbg:
         # if the optional current thread context was not supplied, grab it for the current thread.
         if not context:
             context = self.context
+        if self.is64bits:
+#-----------------------------------------------------------------------------------------------------------------------[regs]
+#  RAX: 0x0000000100001478  RBX: 0x0000000000000000  RCX: 0x00007FFF70E3EA70  RDX: 0x0000000000000000  o d I t s z a p c 
+#  RSI: 0x0000000000000001  RDI: 0x00007FFF5FBFD5E0  RBP: 0x0000000000000000  RSP: 0x00007FFF5FBFF8B0  RIP: 0x0000000100001478
+#  R8 : 0x0000000012AB0123  R9 : 0x0000000000000000  R10: 0x0000000000001200  R11: 0x0000000000000206  R12: 0x0000000000000000
+#  R13: 0x0000000000000000  R14: 0x0000000000000000  R15: 0x0000000000000000
+#  CS: 0027  DS: 0000  ES: 0000  FS: 0010  GS: 0048  SS: 0000				
+#-----------------------------------------------------------------------------------------------------------------------[code]
 
-        context_dump  = "CONTEXT DUMP\n"
-        context_dump += "  EIP: %08x " % (context.Eip)
-        context_dump += "  EAX: %08x " % (context.Eax)
-        context_dump += "  EBX: %08x " % (context.Ebx)
-        context_dump += "  ECX: %08x " % (context.Ecx)
-        context_dump += "  EDX: %08x " % (context.Edx)
-        context_dump += "  EDI: %08x " % (context.Edi)
-        context_dump += "  ESI: %08x " % (context.Esi)
-        context_dump += "  EBP: %08x " % (context.Ebp)
-        context_dump += "  ESP: %08x\n" % (context.Esp)
-           
-        # FG!
-        context_dump += "  DR0: %08x   DR1: %08x   DR2: %08x   DR3: %08x\n" % (context.Dr0, context.Dr1, context.Dr2, context.Dr3 )
+            context_dump  = "-----------------------------------------------------------------------------------------------------------------------[regs]\n"
+            context_dump += "  RAX: %016x  RBX: %016x  RCX: %016x  RDX: %016x\n" % (context.Rax, context.Rbx, context.Rcx, context.Rdx)
+            context_dump += "  RSI: %016x  RDI: %016x  RBP: %016x  RSP: %016x  RIP: %016x\n" % (context.Rsi, context.Rdi, context.Rbp, context.Rsp, context.Rip)
+            context_dump += "  R8:  %016x  R9:  %016x  R10: %016x  R11: %016x  R12: %016x\n" % (context.R8, context.R9, context.R10, context.R11, context.R12)
+            context_dump += "  R13: %016x  R14: %016x  R15: %016x\n" % (context.R13, context.R14, context.R15)
+            context_dump += "  DR0: %016x  DR1: %016x  DR2: %016x  DR3: %016x\n" % (context.Dr0, context.Dr1, context.Dr2, context.Dr3)
+            context_dump += "-----------------------------------------------------------------------------------------------------------------------------\n"
+        else:
+#---------------------------------------------------------------------------------[regs]
+#  EAX: 0x00001A60  EBX: 0x00001000  ECX: 0x00000001  EDX: 0x00000000  o d I t S z A P c 
+#  ESI: 0x00000000  EDI: 0x00000000  EBP: 0x00000000  ESP: 0xBFFFF924  EIP: 0x00001A60
+#  CS: 0017  DS: 001F  ES: 001F  FS: 0000  GS: 0037  SS: 001F
+#--------------------------------------------------------------------------[code]
+
+            context_dump  = "---------------------------------------------------------------------------------[regs]\n"
+            context_dump += "  EAX: %08x  EBX: %08x  ECX: %08x  EDX: %08x\n" % (context.Eax, context.Ebx, context.Ecx, context.Edx)
+            context_dump += "  ESI: %08x  EDI: %08x  EBP: %08x  ESP: %08x  EIP: %08x\n" % (context.Esi, context.Edi, context.Ebp, context.Esp, context.Eip)
+            context_dump += "  DR0: %08x  DR1: %08x  DR2: %08x  DR3: %08x\n" % (context.Dr0, context.Dr1, context.Dr2, context.Dr3)
+            context_dump += "---------------------------------------------------------------------------------------\n"
 
         return context_dump
 
+    #####################################################################################################################
+    def process_eflags (self, eflags):
+        '''
+        Return an informational block of text describing the CPU eflags.
+
+        @type  context:     Context
+        @param context:     (Optional) Current thread context to examine
+        @type  print_dots:  Bool
+        @param print_dots:  (Optional, def:True) Controls suppression of dot in place of non-printable
+
+        @rtype:  String
+        @return: Information about current thread context.
+        '''
+        if not eflags:
+            return ""
+        
+        # OF (overflow) flag
+        id_flag = 1 if ((eflags >> 0x15) & 1) else 0
+        vip_flag = 1 if ((eflags >> 0x14) & 1) else 0
+        vif_flag = 1 if ((eflags >> 0x13) & 1) else 0
+        ac_flag = 1 if ((eflags >> 0x12) & 1) else 0
+        vm_flag = 1 if ((eflags >> 0x11) & 1) else 0
+        rf_flag = 1 if ((eflags >> 0x10) & 1) else 0
+        of_flag = 1 if ((eflags >> 0xB) & 1) else 0
+        df_flag = 1 if ((eflags >> 0xA) & 1) else 0
+        if_flag = 1 if ((eflags >> 0x9) & 1) else 0
+        tf_flag = 1 if ((eflags >> 0x8) & 1) else 0
+        sf_flag = 1 if ((eflags >> 0x7) & 1) else 0
+        zf_flag = 1 if ((eflags >> 0x6) & 1) else 0
+        af_flag = 1 if ((eflags >> 0x4) & 1) else 0
+        pf_flag = 1 if ((eflags >> 0x2) & 1) else 0
+        cf_flag = 1 if (eflags & 0x1) else 0
+        
+    
     #####################################################################################################################
     def enumerate_modules (self):
         '''
@@ -3234,7 +3277,7 @@ class pydbg:
             context = self.context
 
         (stack_top, stack_bottom) = self.stack_range(context)
-        print "stack_range is: %lx %lx" % (stack_top, stack_bottom)
+#        print "stack_range is: %lx %lx" % (stack_top, stack_bottom)
 
         if address >= stack_bottom and address <= stack_top:
             return True

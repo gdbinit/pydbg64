@@ -293,13 +293,35 @@ BOOL Process32Next(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
 EXPORT
 BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
 {
-	mach_msg_type_number_t sc;
-#if __LP64__
-//	printf("64bits GetThreadContext on thread %d\n", hThread);
+	mach_msg_type_number_t count;
+#if defined (__arm__)
+    arm_thread_state_t state;
+    count = ARM_THREAD_STATE_COUNT;
+    thread_get_state(hThread, ARM_THREAD_STATE, (thread_state_t) &state, &count);
+    lpContext->R0   = state.__r[0];
+    lpContext->R1   = state.__r[1];
+    lpContext->R2   = state.__r[2];
+    lpContext->R3   = state.__r[3];
+    lpContext->R4   = state.__r[4];
+    lpContext->R5   = state.__r[5];
+    lpContext->R6   = state.__r[6];
+    lpContext->R7   = state.__r[7];
+    lpContext->R8   = state.__r[8];
+    lpContext->R9   = state.__r[9];
+    lpContext->R10  = state.__r[10];
+    lpContext->R11  = state.__r[11];
+    lpContext->R12  = state.__r[12];
+    lpContext->SP   = state.__sp;
+    lpContext->LR   = state.__lr;
+    lpContext->PC   = state.__pc;
+    lpContext->CPSR = state.__cpsr;
+    // FIXMEARM: add debug registers ?
+    
+#elif defined (__x86_64__)
 	x86_thread_state64_t state;
-	sc = x86_THREAD_STATE64_COUNT;
-	thread_get_state( hThread, x86_THREAD_STATE64, (thread_state_t) &state, &sc);
-//	printf("GetThreadContext RIP: %p\n", (void *)state.__rip);
+	count = x86_THREAD_STATE64_COUNT;
+	thread_get_state(hThread, x86_THREAD_STATE64, (thread_state_t) &state, &count);
+
 	lpContext->Rax = state.__rax;
 	lpContext->Rbx = state.__rbx;
 	lpContext->Rcx = state.__rcx;
@@ -308,23 +330,23 @@ BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
 	lpContext->Rsi = state.__rsi;
 	lpContext->Rbp = state.__rbp;
 	lpContext->Rsp = state.__rsp;
-	lpContext->RFlags = state.__rflags;
 	lpContext->Rip = state.__rip;
-	lpContext->SegCs = state.__cs;
-	lpContext->SegFs = state.__fs;
-	lpContext->SegGs = state.__gs;
-	lpContext->R8 = state.__r8;
-	lpContext->R9 = state.__r9;
+	lpContext->R8  = state.__r8;
+	lpContext->R9  = state.__r9;
 	lpContext->R10 = state.__r10;
 	lpContext->R11 = state.__r11;
 	lpContext->R12 = state.__r12;
 	lpContext->R13 = state.__r13;
 	lpContext->R14 = state.__r14;
 	lpContext->R15 = state.__r15;
-
+    lpContext->SegCs = state.__cs;
+	lpContext->SegFs = state.__fs;
+	lpContext->SegGs = state.__gs;
+    lpContext->RFlags = state.__rflags;
+    
 	x86_debug_state64_t debug;
-	sc = x86_DEBUG_STATE64_COUNT;
-	thread_get_state( hThread, x86_DEBUG_STATE64, (thread_state_t) &debug, &sc);
+	count = x86_DEBUG_STATE64_COUNT;
+	thread_get_state(hThread, x86_DEBUG_STATE64, (thread_state_t) &debug, &count);
 	lpContext->Dr0 = debug.__dr0;
 	lpContext->Dr1 = debug.__dr1;
 	lpContext->Dr2 = debug.__dr2;
@@ -332,10 +354,10 @@ BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
 	lpContext->Dr6 = debug.__dr6;
 	lpContext->Dr7 = debug.__dr7;
 	
-#else
+#elif defined (__i386__)
 	i386_thread_state_t state;
-	sc = i386_THREAD_STATE_COUNT;
-	thread_get_state( hThread, i386_THREAD_STATE, (thread_state_t) &state, &sc);
+	count = i386_THREAD_STATE_COUNT;
+	thread_get_state(hThread, i386_THREAD_STATE, (thread_state_t) &state, &count);
 	lpContext->Eax = state.eax;
 	lpContext->Ebx = state.ebx;
 	lpContext->Ecx = state.ecx;
@@ -344,18 +366,18 @@ BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
 	lpContext->Esi = state.esi;
 	lpContext->Ebp = state.ebp;
 	lpContext->Esp = state.esp;
+    lpContext->Eip = state.eip;
 	lpContext->SegSs = state.ss;
-	lpContext->EFlags = state.eflags;
-	lpContext->Eip = state.eip;
 	lpContext->SegCs = state.cs;
 	lpContext->SegDs = state.ds;
 	lpContext->SegEs = state.es;
 	lpContext->SegFs = state.fs;
 	lpContext->SegGs = state.gs;
-	
+	lpContext->EFlags = state.eflags;
+    
 	x86_debug_state32_t debug;
-	sc = x86_DEBUG_STATE32_COUNT;
-	thread_get_state( hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, &sc);
+	count = x86_DEBUG_STATE32_COUNT;
+	thread_get_state(hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, &count);
 	lpContext->Dr0 = debug.dr0;
 	lpContext->Dr1 = debug.dr1;
 	lpContext->Dr2 = debug.dr2;
@@ -369,10 +391,37 @@ BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
 EXPORT
 BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 {
-	mach_msg_type_number_t sc;
+	mach_msg_type_number_t count;
 	kern_return_t result;
+#if defined (__arm__)
+    arm_thread_state_t state;
+    state.__r[0]  = lpContext->R0;
+    state.__r[1]  = lpContext->R1;
+    state.__r[2]  = lpContext->R2;
+    state.__r[3]  = lpContext->R3;
+    state.__r[4]  = lpContext->R4;
+    state.__r[5]  = lpContext->R5;
+    state.__r[6]  = lpContext->R6;
+    state.__r[7]  = lpContext->R7;
+    state.__r[8]  = lpContext->R8;
+    state.__r[9]  = lpContext->R9;
+    state.__r[10] = lpContext->R10;
+    state.__r[11] = lpContext->R11;
+    state.__r[12] = lpContext->R12;
+    state.__sp    = lpContext->SP;
+    state.__lr    = lpContext->LR;
+    state.__pc    = lpContext->PC;
+    state.__cpsr  = lpContext->CPSR;
+    count = ARM_THREAD_STATE_COUNT;
+    result = thread_set_state(hThread, ARM_THREAD_STATE, (thread_state_t) &state, count);
+    if (result != KERN_SUCCESS)
+    {
+		fprintf(stderr, "[ERROR] ARM thread set state failed!\n");
+		return 0;
+	}
+    // FIXMEARM : add debug registers?
 
-#if __LP64__
+#elif defined (__x86_64__)
 	x86_thread_state64_t state;
     state.__rax = lpContext->Rax;
 	state.__rbx = lpContext->Rbx;
@@ -382,24 +431,24 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	state.__rsi = lpContext->Rsi;
 	state.__rbp = lpContext->Rbp;
 	state.__rsp = lpContext->Rsp;
-	state.__rflags = lpContext->RFlags;
 	state.__rip = lpContext->Rip;
-	state.__cs = lpContext->SegCs;
-	state.__fs = lpContext->SegFs;
-	state.__gs = lpContext->SegGs;
-	state.__r8 = lpContext->R8;
-	state.__r9 = lpContext->R9;
+	state.__r8  = lpContext->R8;
+	state.__r9  = lpContext->R9;
 	state.__r10 = lpContext->R10;
 	state.__r11 = lpContext->R11;
 	state.__r12 = lpContext->R12;
 	state.__r13 = lpContext->R13;
 	state.__r14 = lpContext->R14;
 	state.__r15 = lpContext->R15;
-	sc = x86_THREAD_STATE64_COUNT;
-	result = thread_set_state( hThread, x86_THREAD_STATE64, (thread_state_t) &state, sc);
+	state.__cs = lpContext->SegCs;
+	state.__fs = lpContext->SegFs;
+	state.__gs = lpContext->SegGs;
+    state.__rflags = lpContext->RFlags;
+	count = x86_THREAD_STATE64_COUNT;
+	result = thread_set_state(hThread, x86_THREAD_STATE64, (thread_state_t) &state, count);
 	if (result != KERN_SUCCESS)
     {
-		printf("64bits thread set state failed!\n");
+		fprintf(stderr, "[ERROR] 64bits thread set state failed!\n");
 		return 0;
 	}
 	
@@ -410,15 +459,15 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	debug.__dr3 = lpContext->Dr3;
 	debug.__dr6 = lpContext->Dr6;
 	debug.__dr7 = lpContext->Dr7;
-	sc = x86_DEBUG_STATE64_COUNT;
-	result = thread_set_state( hThread, x86_DEBUG_STATE64, (thread_state_t) &debug, sc);
+	count = x86_DEBUG_STATE64_COUNT;
+	result = thread_set_state(hThread, x86_DEBUG_STATE64, (thread_state_t) &debug, count);
 	if (result != KERN_SUCCESS)
     {
-		printf("64 bits thread set state debug failed!\n");
+		fprintf(stderr, "[ERROR] 64bits thread set state debug failed!\n");
 		return 0;
 	}
 	
-#else
+#elif defined(__i386__)
 	i386_thread_state_t state;
 	state.eax = lpContext->Eax;
 	state.ebx = lpContext->Ebx;
@@ -428,18 +477,19 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	state.esi = lpContext->Esi;
 	state.ebp = lpContext->Ebp;
 	state.esp = lpContext->Esp;
-	state.ss = lpContext->SegSs;
-	state.eflags = lpContext->EFlags;
+	state.ss  = lpContext->SegSs;
 	state.eip = lpContext->Eip;
 	state.cs = lpContext->SegCs;
 	state.ds = lpContext->SegDs;
 	state.es = lpContext->SegEs;
 	state.fs = lpContext->SegFs;
-	state.gs = lpContext->SegGs;	
-	sc = i386_THREAD_STATE_COUNT;
-	result = thread_set_state( hThread, i386_THREAD_STATE, (thread_state_t) &state, sc);
+	state.gs = lpContext->SegGs;
+    state.eflags = lpContext->EFlags;
+	count = i386_THREAD_STATE_COUNT;
+	result = thread_set_state(hThread, i386_THREAD_STATE, (thread_state_t) &state, count);
 	if (result != KERN_SUCCESS)
     {
+        fprintf(stderr, "[ERROR] 32bits thread set state failed!\n");
 		return 0;
 	}
 
@@ -450,10 +500,11 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	debug.dr3 = lpContext->Dr3;
 	debug.dr6 = lpContext->Dr6;
 	debug.dr7 = lpContext->Dr7;
-	sc = x86_DEBUG_STATE32_COUNT;
-	result = thread_set_state( hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, sc);
+	count = x86_DEBUG_STATE32_COUNT;
+	result = thread_set_state(hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, count);
 	if (result != KERN_SUCCESS)
     {
+        fprintf(stderr, "[ERROR] 32bits thread set state debug failed!\n");
 		return 0;
 	}
 #endif	
@@ -487,17 +538,22 @@ BOOL CreateProcessA(LPCTSTR lpApplicationName,
     int retval      = 0;
     size_t copied   = 0;
     short flags     = 0;
+    cpu_type_t cpu  = 0;
+    
+#if defined (__arm__)
+    cpu = CPU_TYPE_ARM;
+#else
     // default target is 32bits
-    cpu_type_t cpu  = CPU_TYPE_I386;
-
+    cpu  = CPU_TYPE_I386;
     if (dwCreationFlags & TARGET_IS_64BITS)
         cpu = CPU_TYPE_X86_64;
-
+#endif
+    
     retval = posix_spawnattr_init (&attr);
     // set process flags
     // the new process will start in a suspended state and permissions reset to real uid/gid
     flags = POSIX_SPAWN_RESETIDS | POSIX_SPAWN_START_SUSPENDED;
-    // disable ASLR, default is YES
+    // disable ASLR, default is YES from PyDbg
     // Snow Leopard will just ignore this flag
     if (dwCreationFlags & _POSIX_SPAWN_DISABLE_ASLR)
         flags |= _POSIX_SPAWN_DISABLE_ASLR;
@@ -722,7 +778,7 @@ BOOL GetThreadSelectorEntry(HANDLE hThread, DWORD dwSelector, LPLDT_ENTRY lpSele
 	if(!allocated_fs_base){
 		char *fake_data = (char *) malloc(0x40);
 		// Allocate some memory to put our fake data structures
-		mach_vm_address_t allocateme;
+		mach_vm_address_t allocateme = 0;
 //		allocated_fs_base = (int) allocate(hThread, 0, 128);
 		allocated_fs_base = (long) allocate(hThread, allocateme, 128);
 		
@@ -839,7 +895,7 @@ DWORD GetImageCount()
 	imagecount = _dyld_image_count();	
 	for (i=0; i < imagecount; i++)
 	{
-		printf("Image name: %s %x %x\n", _dyld_get_image_name(i),_dyld_get_image_vmaddr_slide(i),_dyld_get_image_header(i));
+		printf("Image name: %s %x %x\n", _dyld_get_image_name(i), (uint32_t)_dyld_get_image_vmaddr_slide(i), (uint32_t)_dyld_get_image_header(i));
 	}
 	return imagecount;
 }
@@ -926,7 +982,7 @@ BOOL AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN
 }
 
 EXPORT
-BOOL NtSystemDebugControl()
+BOOL NtSystemDebugControl(void)
 {
 	uuid_t id;
 	struct timespec wait;

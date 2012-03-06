@@ -52,6 +52,7 @@ int macosx_locate_dyld(int pid, unsigned int *addr)
 	return 0;
 }
 
+// FIXME: change the VM functions to mach
 int dyld_starts_here_p (task_t port, mach_vm_address_t addr)
 {
 	mach_vm_address_t address = addr;
@@ -65,9 +66,9 @@ int dyld_starts_here_p (task_t port, mach_vm_address_t addr)
 
 	struct mach_header *mh;
 #if __LP64__
-	ret = vm_region_64 (port, (unsigned long *) &address, (unsigned long *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) & info, &info_cnt, &object_name);
+	ret = vm_region_64(port, (unsigned long *) &address, (unsigned long *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) & info, &info_cnt, &object_name);
 #else
-	ret = vm_region (port, (unsigned int *) &address, (unsigned int *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) & info, &info_cnt, &object_name);
+	ret = vm_region(port, (unsigned int *) &address, (unsigned int *) &size, VM_REGION_BASIC_INFO, (vm_region_info_t) & info, &info_cnt, &object_name);
 #endif
 
 	if (ret != KERN_SUCCESS)
@@ -78,7 +79,7 @@ int dyld_starts_here_p (task_t port, mach_vm_address_t addr)
 	if ((info.protection & VM_PROT_READ) == 0)
 		return 0;
 
-	ret = vm_read (port, address, size, &data, &data_count);
+	ret = mach_vm_read(port, address, size, &data, &data_count);
 
 	if (ret != KERN_SUCCESS){
       /* Don't vm_deallocate the memory here, you didn't successfully get

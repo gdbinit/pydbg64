@@ -17,7 +17,11 @@
 
 #include <mach-o/ldsyms.h>
 #include <mach/mach_types.h>
+
+#if !defined (__arm__)
 #include <mach/mach_vm.h>
+#endif
+
 #include <mach/mach.h>
 #include <stdlib.h>
 

@@ -32,11 +32,13 @@ static long exception_ref;
 #define EFLAGS_TRAP                         0x00000100
 
 extern boolean_t mach_exc_server(mach_msg_header_t *request,mach_msg_header_t *reply);
+static int XToWinException(int exception);
 
-int XToWinException(int ec)
+static int
+XToWinException(int exception)
 {
 	int ret;
-	switch(ec)
+	switch(exception)
     {
 		case EXC_BAD_ACCESS:
 			ret = EXCEPTION_ACCESS_VIOLATION;
@@ -82,16 +84,20 @@ extern kern_return_t catch_mach_exception_raise(
     thread_state_flavor_t flavor;
     
     // Decide whether to handle it or not.
-#if __LP64__
+#if defined (__arm__)
+    arm_thread_state_t state;
+    count  = ARM_THREAD_STATE_COUNT;
+    flavor = ARM_THREAD_STATE;
+#elif defined (__x86_64__)
 	x86_thread_state64_t state;
 	count  = x86_THREAD_STATE64_COUNT;
     flavor = x86_THREAD_STATE64;
-#else
+#elif defined (__i386__)
 	i386_thread_state_t state;	  
 	count  = i386_THREAD_STATE_COUNT;
     flavor = i386_THREAD_STATE;
 #endif
-    
+
     // set globals
     thread_id       = thread;
     exception_code  = exception;
@@ -108,8 +114,16 @@ extern kern_return_t catch_mach_exception_raise(
     if (exception == EXC_BREAKPOINT) 
 	{
 		suspend_thread(thread); // ???
-		
-#if __LP64__
+        
+#if defined (__arm__)
+        exception_at = eip - 1;   // Cause of the cc FIXMEARM: ?
+        flavor = ARM_EXCEPTION_STATE;
+        count  = ARM_EXCEPTION_STATE_COUNT;
+        arm_exception_state_t exc_state;
+        thread_get_state(thread, flavor, (thread_state_t)&exc_state, &count);
+        exception_ref = exc_state.__far;
+
+#elif defined (__x86_64__)
 		// determine if single step
 		if(state.__rflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
 		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
@@ -124,7 +138,7 @@ extern kern_return_t catch_mach_exception_raise(
         thread_get_state(thread, flavor, (thread_state_t)&exc_state, &count);	
 		exception_ref = exc_state.__faultvaddr;
 
-#else
+#elif defined (__i386__)
 		// determine if single step
 		if(state.eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
 		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
@@ -146,13 +160,19 @@ extern kern_return_t catch_mach_exception_raise(
 	{
 		// This is bad - or good :) //
         exception_at = eip;
-#if __LP64__
+#if defined (__arm__)
+        flavor = ARM_EXCEPTION_STATE;
+        count  = ARM_EXCEPTION_STATE_COUNT;
+        arm_exception_state_t exc_state;
+        thread_get_state(thread,flavor, (thread_state_t)&exc_state, &count);		
+		exception_ref = exc_state.__far;   
+#elif defined (__x86_64__)
         flavor = x86_EXCEPTION_STATE64;
         count  = x86_EXCEPTION_STATE64_COUNT;
         x86_exception_state64_t exc_state;
         thread_get_state(thread,flavor, (thread_state_t)&exc_state, &count);		
 		exception_ref = exc_state.__faultvaddr;   
-#else
+#elif defined (__i386__)
         flavor = x86_EXCEPTION_STATE32;
         count  = x86_EXCEPTION_STATE32_COUNT;
         i386_exception_state_t exc_state;
@@ -292,7 +312,7 @@ my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *except
 	*eat = exception_at;
 	*eref = exception_ref;
 
-//	printf("**************************************Got exception code %x\n", *ec);
+	printf("**************************************Got exception code %x\n", *except_code);
 	
 	r = mach_msg(
 		&reply.head,
@@ -318,10 +338,13 @@ my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *except
 /* Retrieve EIP/RIP so we can work later in a platform independent way */
 uint64_t get_eip (thread_state_t stateptr)
 {	
-#if __LP64__
+#if defined (__arm__)
+    arm_thread_state_t *state = (arm_thread_state_t *)stateptr;
+    return(state->__pc);
+#elif defined (__x86_64__)
 	x86_thread_state64_t *state = (x86_thread_state64_t *)stateptr;
 	return(state->__rip);
-#else
+#elif defined (__i386__)
 	i386_thread_state_t *state = (i386_thread_state_t *)stateptr;
 	return(state->eip);
 #endif
