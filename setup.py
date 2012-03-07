@@ -19,7 +19,7 @@ def build_macdll():
     print("-" * 30)
     if res != 0:
         print("failed to build macdll")
-        exit
+        exit(res)
 
 build_macdll()
 
