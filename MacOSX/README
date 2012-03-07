@@ -46,6 +46,14 @@ Contributions are welcome :-)
 Enjoy,
 fG!
 
+---
+
+To build & install:
+
+# python setup.py install
+
+-snare.
+
 **** OLD INSTRUCTIONS, TO BE UPDATED ****
 
 Welcome to Pai Mei/PyDbg for Mac OS X.  This code is still under development so probably has bugs.  Please 
