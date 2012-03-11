@@ -177,6 +177,18 @@ _CONTEXT._fields_ = [
     ('R13', DWORD),
     ('R14', DWORD),
     ('R15', DWORD),
+    ('R0', DWORD),
+    ('R1', DWORD),
+    ('R2', DWORD),
+    ('R3', DWORD),
+    ('R4', DWORD),
+    ('R5', DWORD),
+    ('R6', DWORD),
+    ('R7', DWORD),
+    ('SP', DWORD),
+    ('LR', DWORD),
+    ('PC', DWORD),
+    ('CPSR', DWORD),
     ('ExtendedRegisters', BYTE * 512),
 ]
 #assert sizeof(_CONTEXT) == 716, sizeof(_CONTEXT)

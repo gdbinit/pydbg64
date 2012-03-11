@@ -3,8 +3,9 @@
 #
 # PyDBG
 # Copyright (C) 2006 Pedram Amini <pedram.amini@gmail.com>
+# OS X/iOS Modifications Copyright (C) 2010, 2011, 2012 fG! <reverser@put.as>
 #
-# $Id: pydbg.py 238 2010-04-05 20:40:46Z rgovostes $
+# $Id: pydbg.py 238 2012-03-11 20:40:46Z fG! $
 #
 # This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public
 # License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later
@@ -29,10 +30,12 @@ import sys
 import copy
 import signal
 import struct
-import pydasm
+import platform
 import socket
 import inspect
-import distorm3
+if platform.processor() != 'arm':
+    import pydasm
+    import distorm3
 
 from my_ctypes  import *
 from defines    import *
@@ -117,6 +120,10 @@ class pydbg:
         self.peb                      = None      # process environment block address
         self.tebs                     = {}        # dictionary of thread IDs to thread environment block addresses
         self.is64bits                 = False     # are we debugging a 64bits program?
+        if platform.processor() == 'arm':         # are we trying to debug iOS targets?
+            self.isarm                = True
+        else:
+            self.isarm                = False
         self.was_loaded               = False     # debuggee was loaded or attached?
         # internal variables specific to the last triggered exception.
         self.context                  = None      # thread context of offending thread
@@ -151,7 +158,7 @@ class pydbg:
 
         # control debug/error logging.
         self._info = lambda msg: None #sys.stderr.write("[INFO-pydbg] " + msg + "\n")
-        self._log = lambda msg: None # sys.stderr.write("[!LOG-pydbg] " + msg + "\n")
+        self._log = lambda msg:  None #sys.stderr.write("[!LOG-pydbg] " + msg + "\n")
         self._warning = lambda msg: None #sys.stderr.write("[!WARNING-pydbg] " + msg + "\n")
         self._err = lambda msg: sys.stderr.write("[ERROR-pydbg] " + msg + "\n")
 
@@ -770,15 +777,23 @@ class pydbg:
         # ensure a breakpoint doesn't already exist at the target address.
         if not self.breakpoints.has_key(address):
             try:
-                # save the original byte at the requested breakpoint address.
-                original_byte = self.read_process_memory(address, 1)
- 
-                # write an int3 into the target process space.
-                self.write_process_memory(address, "\xCC")
-                self.set_attr("dirty", True)
-
-                # add the breakpoint to the internal list.
-                self.breakpoints[address] = breakpoint(address, original_byte, description, restore, handler)
+                if platform.processor() == 'arm':
+                    # save the original byte at the requested breakpoint address.
+                    original_byte = self.read_process_memory(address, 4)
+                    # write an int3 into the target process space.
+                    self.write_process_memory(address, "\xFE\xDE\xFF\xE7")
+                    self.set_attr("dirty", True)
+                    # add the breakpoint to the internal list.
+                    self.breakpoints[address] = breakpoint(address, original_byte, description, restore, handler)
+                
+                else:
+                    # save the original byte at the requested breakpoint address.
+                    original_byte = self.read_process_memory(address, 1)
+                    # write an int3 into the target process space.
+                    self.write_process_memory(address, "\xCC")
+                    self.set_attr("dirty", True)
+                    # add the breakpoint to the internal list.
+                    self.breakpoints[address] = breakpoint(address, original_byte, description, restore, handler)
             except:
                 self.unresolved_breakpoints.append( (address,description,restore,handler ) )
                 #raise pdx("Failed setting breakpoint at %08x" % address)
@@ -1249,7 +1264,9 @@ class pydbg:
                 # call the internal handler for the exception event that just occured.
                 if ec == EXCEPTION_ACCESS_VIOLATION:
                     continue_status = self.exception_handler_access_violation()
-                    if self.is64bits:
+                    if self.isarm:
+                        self._info("access violation exception! PC: 0x%08x" % self.context.PC)
+                    elif self.is64bits:
                         self._info("access violation exception! RIP: 0x%016lx" % self.context.Rip)
                     else:
                         self._info("access violation exception! EIP: 0x%08x" % self.context.Eip)
@@ -1257,7 +1274,9 @@ class pydbg:
                     
                 elif ec == EXCEPTION_BREAKPOINT:
                     continue_status = self.exception_handler_breakpoint()
-                    if self.is64bits:
+                    if self.isarm:
+                        self._info("breakpoint exception at thread %d. PC: 0x%08x" % (dbg.dwThreadId, self.context.PC))
+                    elif self.is64bits:
                         self._info("breakpoint exception at thread %d. RIP: 0x%016lx"  % (dbg.dwThreadId,self.context.Rip))
                     else:
                         self._info("breakpoint exception at thread %d. EIP: 0x%08x"  % (dbg.dwThreadId,self.context.Eip))
@@ -1267,7 +1286,9 @@ class pydbg:
                     self._info("guard page exception!")
                     
                 elif ec == EXCEPTION_SINGLE_STEP:
-                    if self.is64bits:
+                    if self.isarm:
+                        self._info("access violation exception! PC: 0x%08x" % self.context.PC)
+                    elif self.is64bits:
                         self._info("single step exception! RIP: 0x%016lx" % self.context.Rip)
                     else:
                         self._info("single step exception! EIP: 0x%08x" % self.context.Eip)
@@ -1896,8 +1917,34 @@ class pydbg:
             context = self.context
 
         context_list = self.dump_context_list(context, stack_depth, print_dots)
+        if self.isarm:
+            context_dump  = "CONTEXT DUMP\n"
+            context_dump += "  PC  : %08x -> %s\n" % (context.PC,   context_list["PC"])
+            context_dump += "  R1  : %08x -> %s\n" % (context.R1,   context_list["R1"])
+            context_dump += "  R2  : %08x -> %s\n" % (context.R2,   context_list["R2"])
+            context_dump += "  R3  : %08x -> %s\n" % (context.R3,   context_list["R3"])
+            context_dump += "  R4  : %08x -> %s\n" % (context.R4,   context_list["R4"])
+            context_dump += "  R5  : %08x -> %s\n" % (context.R5,   context_list["R5"])
+            context_dump += "  R6  : %08x -> %s\n" % (context.R6,   context_list["R6"])
+            context_dump += "  R7  : %08x -> %s\n" % (context.R7,   context_list["R7"])
+            context_dump += "  R8  : %08x -> %s\n" % (context.R8,   context_list["R8"])
+            context_dump += "  R9  : %08x -> %s\n" % (context.R9,   context_list["R9"])
+            context_dump += "  R10 : %08x -> %s\n" % (context.R10,  context_list["R10"])
+            context_dump += "  R11 : %08x -> %s\n" % (context.R11,  context_list["R11"])
+            context_dump += "  R12 : %08x -> %s\n" % (context.R12,  context_list["R12"])
+            context_dump += "  SP  : %08x -> %s\n" % (context.SP,   context_list["SP"])
+            context_dump += "  LR  : %08x -> %s\n" % (context.LR,   context_list["LR"])
+            context_dump += "  CPSR: %08x -> %s\n" % (context.CPSR, context_list["CPSR"])
+            for offset in xrange(0, stack_depth + 1):
+                context_dump += "  +%02x: %08x (%10d) -> %s\n" %    \
+                (                                                   \
+                    offset * 4,                                     \
+                    context_list["SP+%02x"%(offset*4)]["value"],   \
+                    context_list["SP+%02x"%(offset*4)]["value"],   \
+                    context_list["SP+%02x"%(offset*4)]["desc"]     \
+                )
 
-        if self.is64bits:
+        elif self.is64bits:
             context_dump  = "CONTEXT DUMP\n"
             context_dump += "  RIP: %016lx %s\n" % (context.Rip, context_list["rip"])
             context_dump += "  RAX: %016lx (%10d) -> %s\n" % (context.Rax, context.Rax, context_list["rax"])
@@ -1907,8 +1954,8 @@ class pydbg:
             context_dump += "  RDI: %016lx (%10d) -> %s\n" % (context.Rdi, context.Rdi, context_list["rdi"])
             context_dump += "  RSI: %016lx (%10d) -> %s\n" % (context.Rsi, context.Rsi, context_list["rsi"])
             context_dump += "  RBP: %016lx (%10d) -> %s\n" % (context.Rbp, context.Rbp, context_list["rbp"])
-            context_dump += "  R8 : %016lx (%10d) -> %s\n" % (context.R8, context.R8, context_list["r8"])
-            context_dump += "  R9 : %016lx (%10d) -> %s\n" % (context.R9, context.R9, context_list["r9"])
+            context_dump += "  R8 : %016lx (%10d) -> %s\n" % (context.R8,  context.R8, context_list["r8"])
+            context_dump += "  R9 : %016lx (%10d) -> %s\n" % (context.R9,  context.R9, context_list["r9"])
             context_dump += "  R10: %016lx (%10d) -> %s\n" % (context.R10, context.R10, context_list["r10"])
             context_dump += "  R11: %016lx (%10d) -> %s\n" % (context.R11, context.R11, context_list["r11"])
             context_dump += "  R12: %016lx (%10d) -> %s\n" % (context.R12, context.R12, context_list["r12"])
@@ -1984,7 +2031,38 @@ class pydbg:
 
         context_list = {}
         
-        if self.is64bits:
+        if self.isarm:
+            context_list["R1"]   = self.smart_dereference(context.R1,   print_dots, hex_dump)
+            context_list["R2"]   = self.smart_dereference(context.R2,   print_dots, hex_dump)
+            context_list["R3"]   = self.smart_dereference(context.R3,   print_dots, hex_dump)
+            context_list["R4"]   = self.smart_dereference(context.R4,   print_dots, hex_dump)
+            context_list["R5"]   = self.smart_dereference(context.R5,   print_dots, hex_dump)
+            context_list["R6"]   = self.smart_dereference(context.R6,   print_dots, hex_dump)
+            context_list["R7"]   = self.smart_dereference(context.R7,   print_dots, hex_dump)
+            context_list["R8"]   = self.smart_dereference(context.R8,   print_dots, hex_dump)
+            context_list["R9"]   = self.smart_dereference(context.R9,   print_dots, hex_dump)
+            context_list["R10"]  = self.smart_dereference(context.R10,  print_dots, hex_dump)
+            context_list["R11"]  = self.smart_dereference(context.R11,  print_dots, hex_dump)
+            context_list["R12"]  = self.smart_dereference(context.R12,  print_dots, hex_dump)
+            context_list["SP"]   = self.smart_dereference(context.SP,   print_dots, hex_dump)
+            context_list["LR"]   = self.smart_dereference(context.LR,   print_dots, hex_dump)
+            context_list["PC"]   = self.smart_dereference(context.PC,   print_dots, hex_dump) # no arm disassembler yet FIXME
+            context_list["CPSR"] = self.smart_dereference(context.CPSR, print_dots, hex_dump)
+
+            for offset in xrange(0, stack_depth + 1):
+                try:
+                    SP = self.flip_endian_dword(self.read_process_memory(context.SP + offset * 4, 4))
+
+                    context_list["SP+%02x"%(offset*4)]          = {}
+                    context_list["SP+%02x"%(offset*4)]["value"] = SP
+                    context_list["SP+%02x"%(offset*4)]["desc"]  = self.smart_dereference(SP, print_dots, hex_dump)
+                except:
+                    context_list["SP+%02x"%(offset*4)]          = {}
+                    context_list["SP+%02x"%(offset*4)]["value"] = 0
+                    context_list["SP+%02x"%(offset*4)]["desc"]  = "[INVALID]"
+
+              
+        elif self.is64bits:
             context_list["rip"] = self.disasm(context.Rip)
             context_list["rax"] = self.smart_dereference(context.Rax, print_dots, hex_dump)
             context_list["rbx"] = self.smart_dereference(context.Rbx, print_dots, hex_dump)
@@ -1994,8 +2072,8 @@ class pydbg:
             context_list["rsi"] = self.smart_dereference(context.Rsi, print_dots, hex_dump)
             context_list["rbp"] = self.smart_dereference(context.Rbp, print_dots, hex_dump)
             context_list["rsp"] = self.smart_dereference(context.Rsp, print_dots, hex_dump)
-            context_list["r8"]  = self.smart_dereference(context.R8, print_dots, hex_dump)
-            context_list["r9"]  = self.smart_dereference(context.R9, print_dots, hex_dump)
+            context_list["r8"]  = self.smart_dereference(context.R8,  print_dots, hex_dump)
+            context_list["r9"]  = self.smart_dereference(context.R9,  print_dots, hex_dump)
             context_list["r10"] = self.smart_dereference(context.R10, print_dots, hex_dump)
             context_list["r11"] = self.smart_dereference(context.R11, print_dots, hex_dump)
             context_list["r12"] = self.smart_dereference(context.R12, print_dots, hex_dump)
@@ -2017,7 +2095,6 @@ class pydbg:
                     context_list["rsp+%02x"%(offset*8)]["desc"]  = "[INVALID]"
         
         else:
-
             context_list["eip"] = self.disasm(context.Eip)
             context_list["eax"] = self.smart_dereference(context.Eax, print_dots, hex_dump)
             context_list["ebx"] = self.smart_dereference(context.Ebx, print_dots, hex_dump)
@@ -2039,7 +2116,7 @@ class pydbg:
                     context_list["esp+%02x"%(offset*4)]          = {}
                     context_list["esp+%02x"%(offset*4)]["value"] = 0
                     context_list["esp+%02x"%(offset*4)]["desc"]  = "[INVALID]"
-# FIXME: add the debug registers and remove the below function?
+
         return context_list
 
     ####################################################################################################################
@@ -2498,7 +2575,10 @@ class pydbg:
 
             # before we can continue, we have to correct the value of EIP. the reason for this is that the 1-byte INT 3
             # we inserted causes EIP to "slide" + 1 into the original instruction and must be reset.
-            if self.is64bits:
+            # not applicable to ARM cpus
+            if self.isarm:
+                self.set_register("PC", self.exception_address)
+            elif self.is64bits:
                 self.set_register("RIP", self.exception_address)
                 self.context.Rip -= 1
             else:
@@ -3030,7 +3110,10 @@ class pydbg:
         self._log("get_register getting %s in thread id %d" % (register, self.dbg.dwThreadId))
 
         register = register.upper()
-        if self.is64bits:
+        if self.isarm:
+            if register not in ("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC", "CPSR"):
+                raise pdx("invalid register specified")
+        elif self.is64bits:
             if register not in ("RAX", "RBX", "RCX", "RDX", "RSI", "RDI", "RSP", "RBP", "RIP", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15"):
                 raise pdx("invalid register specified")
         else:
@@ -3040,7 +3123,24 @@ class pydbg:
         # ensure we have an up to date thread context.
         context = self.get_thread_context(self.h_thread)
         
-        if self.is64bits:
+        if self.isarm:
+            if   register == "R1"   : return context.R1
+            elif register == "R2"   : return context.R2
+            elif register == "R3"   : return context.R3
+            elif register == "R4"   : return context.R4
+            elif register == "R5"   : return context.R5
+            elif register == "R6"   : return context.R6
+            elif register == "R7"   : return context.R7
+            elif register == "R8"   : return context.R8
+            elif register == "R9"   : return context.R9
+            elif register == "R10"  : return context.R10
+            elif register == "R11"  : return context.R11
+            elif register == "R12"  : return context.R12
+            elif register == "SP"   : return context.SP
+            elif register == "LR"   : return context.LR
+            elif register == "PC"   : return context.PC
+            elif register == "CPSR" : return context.CPSR
+        elif self.is64bits:
             if   register == "RAX": return context.Rax
             elif register == "RBX": return context.Rbx
             elif register == "RCX": return context.Rcx
@@ -3920,9 +4020,19 @@ class pydbg:
         _address = address
         _length  = length
         
+        # iOS doesn't allow RWX protection!
+        # FIXME: this should give us problems when we first attach to a process since it keeps running
+        # and we are modifying the page permissions without suspending threads
+        # so the right way would be to suspend and retrieve whatever we need
+        # this is more important in iOS since we can't have RWX permissions !
+        if platform.processor() == 'arm':
+            new_protection = PAGE_READWRITE
+        else:
+            new_protection = PAGE_EXECUTE_READWRITE
+            
         try:
             old_protect = self.virtual_query(_address)
-            self.virtual_protect(_address, _length, PAGE_EXECUTE_READWRITE)
+            self.virtual_protect(_address, _length, new_protection)
         except:
             pass
             
@@ -4149,7 +4259,10 @@ class pydbg:
         self._log("setting %s to %08x in thread id %d" % (register, value, self.dbg.dwThreadId))
 
         register = register.upper()
-        if self.is64bits:
+        if self.isarm:
+            if register not in ("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC", "CPSR"):
+                raise pdx("invalid register specified")
+        elif self.is64bits:
             if register not in ("RAX", "RBX", "RCX", "RDX", "RSI", "RDI", "RSP", "RBP", "RIP", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15"):
                 raise pdx("invalid register specified")
         else:
@@ -4158,8 +4271,24 @@ class pydbg:
 
         # ensure we have an up to date thread context.
         context = self.get_thread_context(self.h_thread)
-        
-        if self.is64bits:
+        if self.isarm:
+            if   register == "R1"   : context.R1 = value
+            elif register == "R2"   : context.R2 = value
+            elif register == "R3"   : context.R3 = value
+            elif register == "R4"   : context.R4 = value
+            elif register == "R5"   : context.R5 = value
+            elif register == "R6"   : context.R6 = value
+            elif register == "R7"   : context.R7 = value
+            elif register == "R8"   : context.R8 = value
+            elif register == "R9"   : context.R9 = value
+            elif register == "R10"  : context.R10 = value
+            elif register == "R11"  : context.R11 = value
+            elif register == "R12"  : context.R12 = value
+            elif register == "SP"   : context.SP = value
+            elif register == "LR"   : context.LR = value
+            elif register == "PC"   : context.PC = value
+            elif register == "CPSR" : context.CPSR = value
+        elif self.is64bits:
             if   register == "RAX": context.Rax = value
             elif register == "RBX": context.Rbx = value
             elif register == "RCX": context.Rcx = value
@@ -4612,7 +4741,7 @@ class pydbg:
         '''
         
         self._log("terminate_process")
-
+# FIXME: ARM support?
         if method.lower().startswith("exitprocess"):
             if self.is64bits:
                 self.context.Rip = self.func_resolve_debuggee("kernel32", "ExitProcess")
@@ -4883,9 +5012,16 @@ class pydbg:
         # ensure we can write to the requested memory space.
         _address = address
         _length  = length
+        
+        # iOS doesn't allow RWX protection!
+        if platform.processor() == 'arm':
+            new_protection = PAGE_READWRITE
+        else:
+            new_protection = PAGE_EXECUTE_READWRITE
+
         try:
             old_protect = self.virtual_query(_address)
-            self.virtual_protect(_address, _length, PAGE_EXECUTE_READWRITE)
+            self.virtual_protect(_address, _length, new_protection)
         except:
             pass
             

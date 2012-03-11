@@ -358,32 +358,32 @@ BOOL GetThreadContext(HANDLE hThread, LPCONTEXT lpContext)
 	i386_thread_state_t state;
 	count = i386_THREAD_STATE_COUNT;
 	thread_get_state(hThread, i386_THREAD_STATE, (thread_state_t) &state, &count);
-	lpContext->Eax = state.eax;
-	lpContext->Ebx = state.ebx;
-	lpContext->Ecx = state.ecx;
-	lpContext->Edx = state.edx;
-	lpContext->Edi = state.edi;
-	lpContext->Esi = state.esi;
-	lpContext->Ebp = state.ebp;
-	lpContext->Esp = state.esp;
-    lpContext->Eip = state.eip;
-	lpContext->SegSs = state.ss;
-	lpContext->SegCs = state.cs;
-	lpContext->SegDs = state.ds;
-	lpContext->SegEs = state.es;
-	lpContext->SegFs = state.fs;
-	lpContext->SegGs = state.gs;
-	lpContext->EFlags = state.eflags;
+	lpContext->Eax = state.__eax;
+	lpContext->Ebx = state.__ebx;
+	lpContext->Ecx = state.__ecx;
+	lpContext->Edx = state.__edx;
+	lpContext->Edi = state.__edi;
+	lpContext->Esi = state.__esi;
+	lpContext->Ebp = state.__ebp;
+	lpContext->Esp = state.__esp;
+    lpContext->Eip = state.__eip;
+	lpContext->SegSs = state.__ss;
+	lpContext->SegCs = state.__cs;
+	lpContext->SegDs = state.__ds;
+	lpContext->SegEs = state.__es;
+	lpContext->SegFs = state.__fs;
+	lpContext->SegGs = state.__gs;
+	lpContext->EFlags = state.__eflags;
     
 	x86_debug_state32_t debug;
 	count = x86_DEBUG_STATE32_COUNT;
 	thread_get_state(hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, &count);
-	lpContext->Dr0 = debug.dr0;
-	lpContext->Dr1 = debug.dr1;
-	lpContext->Dr2 = debug.dr2;
-	lpContext->Dr3 = debug.dr3;
-	lpContext->Dr6 = debug.dr6;
-	lpContext->Dr7 = debug.dr7;
+	lpContext->Dr0 = debug.__dr0;
+	lpContext->Dr1 = debug.__dr1;
+	lpContext->Dr2 = debug.__dr2;
+	lpContext->Dr3 = debug.__dr3;
+	lpContext->Dr6 = debug.__dr6;
+	lpContext->Dr7 = debug.__dr7;
 #endif
 	return 1;
 }
@@ -469,22 +469,22 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	
 #elif defined(__i386__)
 	i386_thread_state_t state;
-	state.eax = lpContext->Eax;
-	state.ebx = lpContext->Ebx;
-	state.ecx = lpContext->Ecx;
-	state.edx = lpContext->Edx;
-	state.edi = lpContext->Edi;
-	state.esi = lpContext->Esi;
-	state.ebp = lpContext->Ebp;
-	state.esp = lpContext->Esp;
-	state.ss  = lpContext->SegSs;
-	state.eip = lpContext->Eip;
-	state.cs = lpContext->SegCs;
-	state.ds = lpContext->SegDs;
-	state.es = lpContext->SegEs;
-	state.fs = lpContext->SegFs;
-	state.gs = lpContext->SegGs;
-    state.eflags = lpContext->EFlags;
+	state.__eax = lpContext->Eax;
+	state.__ebx = lpContext->Ebx;
+	state.__ecx = lpContext->Ecx;
+	state.__edx = lpContext->Edx;
+	state.__edi = lpContext->Edi;
+	state.__esi = lpContext->Esi;
+	state.__ebp = lpContext->Ebp;
+	state.__esp = lpContext->Esp;
+	state.__ss  = lpContext->SegSs;
+	state.__eip = lpContext->Eip;
+	state.__cs = lpContext->SegCs;
+	state.__ds = lpContext->SegDs;
+	state.__es = lpContext->SegEs;
+	state.__fs = lpContext->SegFs;
+	state.__gs = lpContext->SegGs;
+    state.__eflags = lpContext->EFlags;
 	count = i386_THREAD_STATE_COUNT;
 	result = thread_set_state(hThread, i386_THREAD_STATE, (thread_state_t) &state, count);
 	if (result != KERN_SUCCESS)
@@ -494,12 +494,12 @@ BOOL SetThreadContext(HANDLE hThread, const CONTEXT* lpContext)
 	}
 
 	x86_debug_state32_t debug;
-	debug.dr0 = lpContext->Dr0;
-	debug.dr1 = lpContext->Dr1;
-	debug.dr2 = lpContext->Dr2;
-	debug.dr3 = lpContext->Dr3;
-	debug.dr6 = lpContext->Dr6;
-	debug.dr7 = lpContext->Dr7;
+	debug.__dr0 = lpContext->Dr0;
+	debug.__dr1 = lpContext->Dr1;
+	debug.__dr2 = lpContext->Dr2;
+	debug.__dr3 = lpContext->Dr3;
+	debug.__dr6 = lpContext->Dr6;
+	debug.__dr7 = lpContext->Dr7;
 	count = x86_DEBUG_STATE32_COUNT;
 	result = thread_set_state(hThread, x86_DEBUG_STATE32, (thread_state_t) &debug, count);
 	if (result != KERN_SUCCESS)
@@ -541,7 +541,9 @@ BOOL CreateProcessA(LPCTSTR lpApplicationName,
     cpu_type_t cpu  = 0;
     
 #if defined (__arm__)
-    cpu = CPU_TYPE_ARM;
+    cpu = CPU_TYPE_ARM; // ooops... distinction is done at subtype which
+                        // posix_spawn doesn't support
+                        // lldb solution seems to not set this - must test
 #else
     // default target is 32bits
     cpu  = CPU_TYPE_I386;

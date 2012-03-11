@@ -53,7 +53,8 @@ int macosx_locate_dyld(int pid, unsigned int *addr)
 }
 
 // FIXME: change the VM functions to mach
-int dyld_starts_here_p (task_t port, mach_vm_address_t addr)
+static int
+dyld_starts_here_p (task_t port, mach_vm_address_t addr)
 {
 	mach_vm_address_t address = addr;
 	mach_vm_size_t size = 0;

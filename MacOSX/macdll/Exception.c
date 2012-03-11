@@ -116,7 +116,7 @@ extern kern_return_t catch_mach_exception_raise(
 		suspend_thread(thread); // ???
         
 #if defined (__arm__)
-        exception_at = eip - 1;   // Cause of the cc FIXMEARM: ?
+        exception_at = eip;   // Cause of the cc FIXMEARM: ?
         flavor = ARM_EXCEPTION_STATE;
         count  = ARM_EXCEPTION_STATE_COUNT;
         arm_exception_state_t exc_state;
@@ -140,7 +140,7 @@ extern kern_return_t catch_mach_exception_raise(
 
 #elif defined (__i386__)
 		// determine if single step
-		if(state.eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
+		if(state.__eflags & EFLAGS_TRAP || code[0] == EXC_I386_SGL)
 		{   // the code[0] is if its a hardware breakpoint.  Windows expects those to be reported as a single step event
 			exception_code = EXCEPTION_SINGLE_STEP;
 		}
@@ -151,7 +151,7 @@ extern kern_return_t catch_mach_exception_raise(
         
         i386_exception_state_t exc_state;
         thread_get_state(thread, flavor, (thread_state_t)&exc_state, &count);
-		exception_ref = exc_state.faultvaddr;
+		exception_ref = exc_state.__faultvaddr;
 #endif
         result = KERN_SUCCESS;
     }
@@ -177,7 +177,7 @@ extern kern_return_t catch_mach_exception_raise(
         count  = x86_EXCEPTION_STATE32_COUNT;
         i386_exception_state_t exc_state;
         thread_get_state(thread,flavor, (thread_state_t)&exc_state, &count);
-		exception_ref = exc_state.faultvaddr;
+		exception_ref = exc_state.__faultvaddr;
 #endif
 		result = KERN_SUCCESS;
 	} 
@@ -312,7 +312,7 @@ my_msg_server(mach_port_t exception_port, int milliseconds, int *id, int *except
 	*eat = exception_at;
 	*eref = exception_ref;
 
-	printf("**************************************Got exception code %x\n", *except_code);
+    //	printf("**************************************Got exception code %x\n", *except_code);
 	
 	r = mach_msg(
 		&reply.head,
@@ -346,7 +346,7 @@ uint64_t get_eip (thread_state_t stateptr)
 	return(state->__rip);
 #elif defined (__i386__)
 	i386_thread_state_t *state = (i386_thread_state_t *)stateptr;
-	return(state->eip);
+	return(state->__eip);
 #endif
 }
 

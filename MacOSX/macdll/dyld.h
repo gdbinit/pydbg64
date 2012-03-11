@@ -27,7 +27,7 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-int dyld_starts_here_p (task_t port, mach_vm_address_t addr);
+static int dyld_starts_here_p (task_t port, mach_vm_address_t addr);
 int macosx_locate_dyld(int pid, unsigned int *addr);
 
 extern task_t getport(pid_t pid);

@@ -127,7 +127,11 @@ winToXProtection(int type)
             mac_prot = VM_PROT_READ;
             break;
         case PAGE_READWRITE:
+#if defined (__arm__)
+            mac_prot = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY;
+#else
             mac_prot = VM_PROT_READ | VM_PROT_WRITE;
+#endif
             break;
         case PAGE_EXECUTE:
             mac_prot = VM_PROT_EXECUTE;
@@ -136,6 +140,7 @@ winToXProtection(int type)
             mac_prot = VM_PROT_EXECUTE | VM_PROT_READ;
             break;
         case PAGE_EXECUTE_READWRITE:
+            // this will not work in iOS!
             mac_prot = VM_PROT_EXECUTE | VM_PROT_READ | VM_PROT_WRITE;
             break;
         case PAGE_GUARD:
@@ -182,22 +187,19 @@ virtual_protect(int pid, mach_vm_address_t address, mach_vm_size_t size, vm_prot
     // convert from Windows to OS X protection
     vm_prot_t mac_prot = winToXProtection(type);
         
-#if defined (__arm__)
-    kern_return_t err = vm_protect(port, address, size, FALSE, mac_prot);
-#else
     kern_return_t err = mach_vm_protect(port, address, size, FALSE, mac_prot);
-#endif
     
+    // FIXME: we are always returning success, even when failure occurs...
     if(err == KERN_SUCCESS){
         sts = 1;
     } else if(err == KERN_PROTECTION_FAILURE){
         sts = 1;  // hopefully they are setting up to read only
-        fprintf(stderr, "[IMPLEMENTATION.C] virtual_protect Failed to protect\n");
+        fprintf(stderr, "[ERROR] virtual_protect Failed to protect\n");
     } else if(err == KERN_INVALID_ADDRESS){
         sts = 1;
-        fprintf(stderr, "[IMPLEMENTATION.C] virtual_protect The address %p is illegal or specifies a non-allocated region.\n", (void*)address);
+        fprintf(stderr, "[ERROR] virtual_protect The address %p is illegal or specifies a non-allocated region.\n", (void*)address);
     } else {
-        fprintf(stderr, "[IMPLEMENTATION.C] virtual_protect Opps, got %d return from vm_protect\n", err);
+        fprintf(stderr, "[ERROR] virtual_protect Opps, got %d return from vm_protect\n", err);
         sts = 1;  // Probably memory is not allocated.
     }
     return sts;
