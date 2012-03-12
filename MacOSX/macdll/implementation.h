@@ -59,6 +59,26 @@ extern kern_return_t mach_vm_protect
  boolean_t set_maximum,
  vm_prot_t new_protection
  );
+
+extern kern_return_t mach_vm_region
+(
+ vm_map_t target_task,
+ mach_vm_address_t *address,
+ mach_vm_size_t *size,
+ vm_region_flavor_t flavor,
+ vm_region_info_t info,
+ mach_msg_type_number_t *infoCnt,
+ mach_port_t *object_name
+ );
+
+kern_return_t mach_vm_write
+(
+ vm_map_t target_task,
+ mach_vm_address_t address,
+ vm_offset_t data,
+ mach_msg_type_number_t dataCnt
+ );
+
 #endif
 
 // PROTOTYPES

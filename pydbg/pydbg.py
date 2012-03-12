@@ -33,13 +33,26 @@ import struct
 import platform
 import socket
 import inspect
-if platform.processor() != 'arm':
-    import pydasm
-    import distorm3
 
 from my_ctypes  import *
 from defines    import *
 from windows_h  import *
+
+# import and configure the available disassembly engines
+pydbgavailable_engines = []
+try:
+    pydbgavailable_engines.append("pydasm")
+    import pydasm
+    
+except ImportError:
+    pydbgavailable_engines.remove("pydasm")
+
+try:
+    pydbgavailable_engines.append("distorm")
+    import distorm3
+    
+except ImportError:
+    pydbgavailable_engines.remove("distorm")
 
 # macos compatability.
 try:
@@ -47,6 +60,7 @@ try:
     advapi32 = windll.advapi32
     ntdll    = windll.ntdll
     iphlpapi = windll.iphlpapi
+
 except:
     kernel32 = CDLL(os.path.join(os.path.dirname(__file__), "libmacdll.dylib"))
     advapi32 = kernel32
@@ -155,7 +169,7 @@ class pydbg:
         self.op1                      = None      # pydasm decoded 1st operand, propagated by self.disasm()
         self.op2                      = None      # pydasm decoded 2nd operand, propagated by self.disasm()
         self.op3                      = None      # pydasm decoded 3rd operand, propagated by self.disasm()
-
+        
         # control debug/error logging.
         self._info = lambda msg: None #sys.stderr.write("[INFO-pydbg] " + msg + "\n")
         self._log = lambda msg:  None #sys.stderr.write("[!LOG-pydbg] " + msg + "\n")
@@ -175,6 +189,12 @@ class pydbg:
         self._log("system page size is %d" % self.page_size)
         if sizeof(c_long) == 8:
             self.is64bits = True
+        
+        # set the default disassembler - change me if you wish different default engines
+        if self.isarm:
+            self.disassembler = ""
+        else:
+            self.disassembler = "pydasm" # pydasm does not support 64bits!
 
 
     ####################################################################################################################
@@ -1401,9 +1421,54 @@ class pydbg:
         self.set_debugger_active(False)
         return self.ret_self()
 
+    ####################################################################################################################
+    def set_engine (self, engine):
+        '''
+        Set the disassembler engine.
+
+        @type  engine: String
+        @param engine: Disassembly engine to use.
+        '''
+        
+        if engine in pydbgavailable_engines:
+            self.disassembler = engine
+        else:
+            print "[ERROR] No such disassembly engine (%s) available!" % (engine)
 
     ####################################################################################################################
+    def get_engine (self):
+        '''
+        Returns the active disassembler engine.
+
+        @rtype  engine: String
+        @return engine: Disassembly engine in use.
+        '''
+        
+        return self.disassembler
+    
+    ####################################################################################################################
     def disasm (self, address):
+        '''
+        Wrapper for calling different disassembly engines.
+
+        @type  address: DWORD
+        @param address: Address to disassemble at
+
+        @rtype:  String
+        @return: Disassembled string.
+        '''
+        if self.disassembler in pydbgavailable_engines:
+            if self.disassembler == "pydasm":
+                return self.disasmpydasm(address)
+            elif self.disassembler == "distorm":
+                return self.disasmstorm(address)
+            elif self.disassembler == "armdisasm":
+                return self.disasmarm(address)
+        else:
+            print "[ERROR] The configured disassembly engine (%s) isn't available" % (self.disassembler)
+        
+    ####################################################################################################################
+    def disasmpydasm (self, address):
         '''
         Pydasm disassemble utility function wrapper. Stores the pydasm decoded instruction in self.instruction.
 
@@ -1485,6 +1550,27 @@ class pydbg:
     ####################################################################################################################
     def disasm_length (self, address):
         '''
+        Wrapper for calling different disassembly engines.
+
+        @type  address: DWORD
+        @param address: Address to disassemble at
+
+        @rtype:  String
+        @return: Disassembled instruction size.
+        '''
+        if self.disassembler in pydbgavailable_engines:
+            if self.disassembler == "pydasm":
+                return self.disasmpydasm_length(address)
+            elif self.disassembler == "distorm":
+                return self.disasmstorm_length(address)
+            elif self.disassembler == "armdisasm":
+                return self.disasmarm_length(address)        
+        else:
+            print "[ERROR] The configured disassembly engine (%s) isn't available" % (self.disassembler)
+
+    ####################################################################################################################
+    def disasmpydasm_length (self, address):
+        '''
         Pydasm disassemble utility function wrapper. Stores the pydasm decoded instruction length in self.length.
 
         @type  address: DWORD
@@ -1541,6 +1627,28 @@ class pydbg:
 
     ####################################################################################################################
     def disasm_full (self, address):
+        '''
+        Wrapper for calling different disassembly engines.
+
+        @type  address: DWORD
+        @param address: Address to disassemble at
+
+        @rtype:  String
+        @return: Disassembled string.
+        '''
+        
+        if self.disassembler in pydbgavailable_engines:
+            if self.disassembler == "pydasm":
+                return self.disasmpydasm_full(address)
+            elif self.disassembler == "distorm":
+                return self.disasmstorm_full(address)
+            elif self.disassembler == "armdisasm":
+                return self.disasmarm_full(address)        
+        else:
+            print "[ERROR] The configured disassembly engine (%s) isn't available" % (self.disassembler)
+
+    ####################################################################################################################
+    def disasmpydasm_full (self, address):
         '''
         Pydasm disassemble utility function wrapper. Stores the pydasm full decoded instruction in self.instruction.
 
@@ -1693,15 +1801,39 @@ class pydbg:
     ####################################################################################################################
     def disasm_below (self, address, num_inst=5):
         '''
-        Given a specified address this routine will return the list of 5 instructions before and after the instruction
-        at address (including the instruction at address, so 11 instructions in total). This is accomplished by grabbing
+        Wrapper for calling different disassembly engines.
+
+        @type  address: DWORD
+        @param address: Address to disassemble below
+        @type  num_inst: Integer
+        @param num_inst: (Optional, Def=5) Number of instructions to disassemble up/down from address
+
+        @rtype:  String
+        @return: Disassembled string.
+        '''
+    
+        if self.disassembler in pydbgavailable_engines:
+            if self.disassembler == "pydasm":
+                return self.disasmpydasm_below(address, num_inst)
+            elif self.disassembler == "distorm":
+                return self.disasmstorm_below(address, num_inst)
+            elif self.disassembler == "armdisasm":
+                return self.disasmarm_below(address, num_inst)        
+        else:
+            print "[ERROR] The configured disassembly engine (%s) isn't available" % (self.disassembler)
+
+    ####################################################################################################################
+    def disasmpydasm_below (self, address, num_inst=5):
+        '''
+        Given a specified address this routine will return the list of X instructions after the instruction
+        at address (including the instruction at address, so X+1 instructions in total). This is accomplished by grabbing
         a larger chunk of data around the address than what is predicted as necessary and then disassembling forward.
         If during the forward disassembly the requested address lines up with the start of an instruction, then the
         assumption is made that the forward disassembly self corrected itself and the instruction set is returned. If
         we are unable to align with the original address, then we modify our data slice and try again until we do.
 
         @type  address:  DWORD
-        @param address:  Address to disassemble around
+        @param address:  Address to disassemble below
         @type  num_inst: Integer
         @param num_inst: (Optional, Def=5) Number of instructions to disassemble up/down from address
 
@@ -1776,8 +1908,8 @@ class pydbg:
     ####################################################################################################################
     def disasmstorm_below (self, address, num_inst=5):
         '''
-        Given a specified address this routine will return the list of 5 instructions before and after the instruction
-        at address (including the instruction at address, so 11 instructions in total). This is accomplished by grabbing
+        Given a specified address this routine will return the list of X instructions after the instruction
+        at address (including the instruction at address, so X+1 instructions in total). This is accomplished by grabbing
         a larger chunk of data around the address than what is predicted as necessary and then disassembling forward.
         If during the forward disassembly the requested address lines up with the start of an instruction, then the
         assumption is made that the forward disassembly self corrected itself and the instruction set is returned. If
@@ -1836,12 +1968,6 @@ class pydbg:
 
                 # calculate the actual address of the instruction at the current offset and grab the disassembly
                 addr = address + start_byte + offset
-                #addr = address + start_byte + offset
-#                inst = pydasm.get_instruction_string(i, pydasm.FORMAT_INTEL, addr).rstrip(" ")
-#                mnemonic = pydasm.get_mnemonic_string(i, pydasm.FORMAT_INTEL)
-#                op1 = pydasm.get_operand_string(i, 0, pydasm.FORMAT_INTEL, addr)
-#                op2 = pydasm.get_operand_string(i, 1, pydasm.FORMAT_INTEL, addr)
-#                op3 = pydasm.get_operand_string(i, 2, pydasm.FORMAT_INTEL, addr)
                 
                 self.instructionx = next(i)
                 self.dsoffset = self.instructionx[0]
@@ -2139,7 +2265,15 @@ class pydbg:
         # if the optional current thread context was not supplied, grab it for the current thread.
         if not context:
             context = self.context
-        if self.is64bits:
+            
+        if self.isarm:
+            context_dump  = "---------------------------------------------------------------------------------[regs]\n"
+            context_dump += "  R0 : %08x  R1: %08x  R2 : %08x  R3 : %08x\n" % (context.R0, context.R1, context.R2, context.R3)
+            context_dump += "  R4 : %08x  R5: %08x  R6 : %08x  R7 : %08x\n" % (context.R4, context.R5, context.R6, context.R7)
+            context_dump += "  R8 : %08x  R9: %08x  R10: %08x  R11: %08x\n" % (context.R8, context.R9, context.R10, context.R11)
+            context_dump += "  R12: %08x  SP: %08x  LR : %08x  PC : %08x\n" % (context.R12, context.SP, context.LR, context.PC)
+            context_dump += "---------------------------------------------------------------------------------------\n"
+        elif self.is64bits:
 #-----------------------------------------------------------------------------------------------------------------------[regs]
 #  RAX: 0x0000000100001478  RBX: 0x0000000000000000  RCX: 0x00007FFF70E3EA70  RDX: 0x0000000000000000  o d I t s z a p c 
 #  RSI: 0x0000000000000001  RDI: 0x00007FFF5FBFD5E0  RBP: 0x0000000000000000  RSP: 0x00007FFF5FBFF8B0  RIP: 0x0000000100001478
